@@ -178,6 +178,10 @@ class RequestThread(QThread):
         """Выполнение запросов."""
         import asyncio
         
+        # Добавляем фразу "Ответь на русском языке" к промту перед отправкой к моделям
+        # Это не отображается в поле ввода и не сохраняется в БД
+        enhanced_prompt = f"{self.prompt}\n\nОтветь на русском языке."
+        
         # Создаем новый event loop для этого потока
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -189,7 +193,7 @@ class RequestThread(QThread):
                 model_names = []
                 
                 for model in self.models:
-                    task = self.request_manager.send_request(model, self.prompt)
+                    task = self.request_manager.send_request(model, enhanced_prompt)
                     tasks.append(task)
                     model_names.append(model.name)
                 
