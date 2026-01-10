@@ -7,7 +7,8 @@ import sys
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QTextEdit, QComboBox, QPushButton, 
                              QLabel, QMessageBox, QTableWidget, QTableWidgetItem,
-                             QHeaderView, QCheckBox, QProgressBar, QTabWidget, QLineEdit)
+                             QHeaderView, QCheckBox, QProgressBar, QTabWidget, QLineEdit,
+                             QDialog, QTextBrowser)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from db import Database
 from models import ModelManager, Model
@@ -219,6 +220,210 @@ class RequestThread(QThread):
             loop.close()
 
 
+class MarkdownViewDialog(QDialog):
+    """Диалог для просмотра ответа нейросети в формате Markdown."""
+    
+    def __init__(self, parent=None, model_name: str = "", response_text: str = "", prompt_text: str = ""):
+        """
+        Инициализация диалога просмотра Markdown.
+        
+        Args:
+            parent: Родительское окно
+            model_name: Название модели
+            response_text: Текст ответа (markdown)
+            prompt_text: Текст промта (опционально)
+        """
+        super().__init__(parent)
+        self.model_name = model_name
+        self.response_text = response_text
+        self.prompt_text = prompt_text
+        self.init_ui()
+        self.load_content()
+    
+    def init_ui(self):
+        """Инициализация интерфейса."""
+        self.setWindowTitle(f"Ответ модели: {self.model_name}")
+        self.setMinimumWidth(800)
+        self.setMinimumHeight(600)
+        
+        layout = QVBoxLayout()
+        
+        # Информация о модели и промте
+        info_layout = QVBoxLayout()
+        if self.prompt_text:
+            prompt_label = QLabel("<b>Промт:</b>")
+            prompt_display = QTextEdit()
+            prompt_display.setPlainText(self.prompt_text)
+            prompt_display.setReadOnly(True)
+            prompt_display.setMaximumHeight(100)
+            info_layout.addWidget(prompt_label)
+            info_layout.addWidget(prompt_display)
+        
+        model_label = QLabel(f"<b>Модель:</b> {self.model_name}")
+        info_layout.addWidget(model_label)
+        
+        layout.addLayout(info_layout)
+        
+        # Разделитель
+        separator = QLabel("─" * 80)
+        layout.addWidget(separator)
+        
+        # Отображение ответа в формате Markdown
+        response_label = QLabel("<b>Ответ:</b>")
+        layout.addWidget(response_label)
+        
+        self.text_browser = QTextBrowser()
+        self.text_browser.setReadOnly(True)
+        self.text_browser.setOpenExternalLinks(True)  # Разрешаем открывать внешние ссылки
+        layout.addWidget(self.text_browser)
+        
+        # Кнопки
+        buttons_layout = QHBoxLayout()
+        buttons_layout.addStretch()
+        
+        # Кнопка "Копировать"
+        copy_button = QPushButton("Копировать текст")
+        copy_button.clicked.connect(self.copy_to_clipboard)
+        buttons_layout.addWidget(copy_button)
+        
+        # Кнопка "Закрыть"
+        close_button = QPushButton("Закрыть")
+        close_button.clicked.connect(self.accept)
+        close_button.setDefault(True)
+        buttons_layout.addWidget(close_button)
+        
+        layout.addLayout(buttons_layout)
+        self.setLayout(layout)
+    
+    def load_content(self):
+        """Загрузка и форматирование содержимого."""
+        try:
+            # Пытаемся импортировать markdown
+            import markdown
+            
+            # Конвертируем markdown в HTML с расширениями
+            # Расширения: codehilite (подсветка кода), fenced_code (блоки кода), tables (таблицы), nl2br (переносы строк)
+            html_content = markdown.markdown(
+                self.response_text,
+                extensions=['codehilite', 'fenced_code', 'tables', 'nl2br']
+            )
+            
+            # Добавляем стили для лучшего отображения
+            styled_html = f"""
+            <html>
+            <head>
+                <style>
+                    body {{
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                        font-size: 14px;
+                        line-height: 1.6;
+                        color: #333;
+                        padding: 15px;
+                        background-color: #ffffff;
+                    }}
+                    h1, h2, h3, h4, h5, h6 {{
+                        margin-top: 20px;
+                        margin-bottom: 10px;
+                        color: #2c3e50;
+                    }}
+                    h1 {{ font-size: 24px; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }}
+                    h2 {{ font-size: 20px; border-bottom: 1px solid #e0e0e0; padding-bottom: 8px; }}
+                    h3 {{ font-size: 18px; }}
+                    code {{
+                        background-color: #f5f5f5;
+                        padding: 2px 6px;
+                        border-radius: 3px;
+                        font-family: 'Courier New', monospace;
+                        font-size: 0.9em;
+                    }}
+                    pre {{
+                        background-color: #f5f5f5;
+                        padding: 15px;
+                        border-radius: 5px;
+                        overflow-x: auto;
+                        border-left: 4px solid #2196F3;
+                    }}
+                    pre code {{
+                        background-color: transparent;
+                        padding: 0;
+                    }}
+                    blockquote {{
+                        border-left: 4px solid #2196F3;
+                        padding-left: 15px;
+                        margin-left: 0;
+                        color: #666;
+                        font-style: italic;
+                    }}
+                    table {{
+                        border-collapse: collapse;
+                        width: 100%;
+                        margin: 15px 0;
+                    }}
+                    th, td {{
+                        border: 1px solid #ddd;
+                        padding: 8px 12px;
+                        text-align: left;
+                    }}
+                    th {{
+                        background-color: #f5f5f5;
+                        font-weight: bold;
+                    }}
+                    tr:nth-child(even) {{
+                        background-color: #f9f9f9;
+                    }}
+                    a {{
+                        color: #2196F3;
+                        text-decoration: none;
+                    }}
+                    a:hover {{
+                        text-decoration: underline;
+                    }}
+                    ul, ol {{
+                        margin: 10px 0;
+                        padding-left: 30px;
+                    }}
+                    li {{
+                        margin: 5px 0;
+                    }}
+                    p {{
+                        margin: 10px 0;
+                    }}
+                </style>
+            </head>
+            <body>
+                {html_content}
+            </body>
+            </html>
+            """
+            self.text_browser.setHtml(styled_html)
+        except ImportError:
+            # Если библиотека markdown не установлена, показываем простой текст
+            QMessageBox.warning(
+                self,
+                "Предупреждение",
+                "Библиотека markdown не установлена.\n"
+                "Установите её командой: pip install markdown\n"
+                "Показываю текст без форматирования."
+            )
+            self.text_browser.setPlainText(self.response_text)
+        except Exception as e:
+            # В случае ошибки показываем простой текст
+            QMessageBox.warning(
+                self,
+                "Ошибка форматирования",
+                f"Не удалось отформатировать Markdown: {str(e)}\n"
+                "Показываю текст без форматирования."
+            )
+            self.text_browser.setPlainText(self.response_text)
+    
+    def copy_to_clipboard(self):
+        """Копирование текста в буфер обмена."""
+        from PyQt5.QtWidgets import QApplication
+        clipboard = QApplication.clipboard()
+        clipboard.setText(self.response_text)
+        QMessageBox.information(self, "Успех", "Текст скопирован в буфер обмена!")
+
+
 class ResultsTableWidget(QWidget):
     """Виджет таблицы результатов."""
     
@@ -232,6 +437,7 @@ class ResultsTableWidget(QWidget):
         super().__init__()
         self.db = db
         self.current_prompt_id: Optional[int] = None
+        self.current_prompt_text: str = ""  # Сохраняем текст промта для передачи в диалог
         self.results_data: Dict[str, Tuple[str, Optional[str]]] = {}  # model_name: (response, error)
         self.init_ui()
     
@@ -251,18 +457,34 @@ class ResultsTableWidget(QWidget):
         
         # Таблица результатов
         self.table = QTableWidget()
-        self.table.setColumnCount(3)
-        self.table.setHorizontalHeaderLabels(["Модель", "Ответ", "Выбрать"])
+        self.table.setColumnCount(4)  # Добавлена колонка "Открыть"
+        self.table.setHorizontalHeaderLabels(["Модель", "Ответ", "Выбрать", "Открыть"])
         
         # Настройка таблицы
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # Модель - по содержимому
         header.setSectionResizeMode(1, QHeaderView.Stretch)  # Ответ - растягивается
         header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Чекбокс - по содержимому
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Кнопка "Открыть" - по содержимому
         
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setVisible(False)  # Скрываем вертикальный заголовок
+        
+        # Настройка стиля для переноса текста в ячейках
+        self.table.setStyleSheet("""
+            QTableWidget::item {
+                padding: 8px;
+                border: none;
+            }
+            QTableWidget {
+                gridline-color: #e0e0e0;
+            }
+        """)
+        # Используем фиксированную высоту строк (будет устанавливаться динамически для каждой строки)
+        self.table.verticalHeader().setDefaultSectionSize(120)  # Начальная высота по умолчанию
+        # Отключаем автоматическое изменение размера, используем фиксированную высоту
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
         
         layout.addWidget(self.table)
         
@@ -319,6 +541,16 @@ class ResultsTableWidget(QWidget):
         self.current_prompt_id = prompt_id
         self.results_data = results
         
+        # Получаем текст промта из базы данных
+        try:
+            prompt_data = self.db.get_prompt_by_id(prompt_id)
+            if prompt_data:
+                self.current_prompt_text = prompt_data.get('prompt', '')
+            else:
+                self.current_prompt_text = ''
+        except:
+            self.current_prompt_text = ''
+        
         row = 0
         for model_name, (response, error) in results.items():
             self.table.insertRow(row)
@@ -365,6 +597,7 @@ class ResultsTableWidget(QWidget):
             response_item.setFlags(response_item.flags() & ~Qt.ItemIsEditable)
             response_item.setToolTip(response_text)  # Подсказка при наведении
             # Перенос текста для длинных ответов
+            response_item.setTextAlignment(Qt.AlignTop | Qt.AlignLeft)
             self.table.setItem(row, 1, response_item)
             
             # Колонка "Выбрать" - чекбокс
@@ -372,8 +605,38 @@ class ResultsTableWidget(QWidget):
             checkbox.setChecked(False)
             self.table.setCellWidget(row, 2, checkbox)
             
-            # Высота строки для длинных ответов
-            self.table.setRowHeight(row, 100)
+            # Колонка "Открыть" - кнопка
+            if not error:  # Показываем кнопку только если нет ошибки
+                open_button = QPushButton("Открыть")
+                open_button.setStyleSheet("""
+                    QPushButton {
+                        background-color: #4CAF50;
+                        color: white;
+                        padding: 5px 15px;
+                        font-weight: bold;
+                        border: none;
+                        border-radius: 4px;
+                    }
+                    QPushButton:hover {
+                        background-color: #45a049;
+                    }
+                """)
+                # Сохраняем данные для передачи в диалог
+                open_button.clicked.connect(lambda checked, model=model_name, resp=response: 
+                                           self.open_markdown_dialog(model, resp))
+                self.table.setCellWidget(row, 3, open_button)
+            else:
+                # Для ошибок оставляем пустую ячейку или показываем кнопку с отключенным состоянием
+                empty_label = QLabel("")
+                self.table.setCellWidget(row, 3, empty_label)
+            
+            # Высота строки для длинных ответов - увеличена для отображения нескольких строк
+            # Вычисляем примерную высоту на основе длины текста (примерно 60 символов на строку при ширине колонки)
+            text_length = len(response_text)
+            # Оцениваем количество строк: примерно 60-80 символов на строку в зависимости от ширины
+            estimated_lines = max(4, min(20, (text_length // 70) + 3))  # Минимум 4 строки, максимум 20
+            row_height = max(120, estimated_lines * 22)  # Минимум 120px, примерно 22px на строку с учетом padding
+            self.table.setRowHeight(row, row_height)
             
             row += 1
         
@@ -439,6 +702,8 @@ class ResultsTableWidget(QWidget):
         
         response_item.setFlags(response_item.flags() & ~Qt.ItemIsEditable)
         response_item.setToolTip(response_text)  # Подсказка при наведении
+        # Перенос текста для длинных ответов
+        response_item.setTextAlignment(Qt.AlignTop | Qt.AlignLeft)
         self.table.setItem(row, 1, response_item)
         
         # Колонка "Выбрать" - чекбокс
@@ -446,7 +711,38 @@ class ResultsTableWidget(QWidget):
         checkbox.setChecked(False)
         self.table.setCellWidget(row, 2, checkbox)
         
-        self.table.setRowHeight(row, 100)
+        # Колонка "Открыть" - кнопка
+        if not error:  # Показываем кнопку только если нет ошибки
+            open_button = QPushButton("Открыть")
+            open_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    padding: 5px 15px;
+                    font-weight: bold;
+                    border: none;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                }
+            """)
+            # Сохраняем данные для передачи в диалог
+            open_button.clicked.connect(lambda checked, model=model_name, resp=response: 
+                                       self.open_markdown_dialog(model, resp))
+            self.table.setCellWidget(row, 3, open_button)
+        else:
+            # Для ошибок оставляем пустую ячейку
+            empty_label = QLabel("")
+            self.table.setCellWidget(row, 3, empty_label)
+        
+        # Высота строки для длинных ответов - увеличена для отображения нескольких строк
+        # Вычисляем примерную высоту на основе длины текста (примерно 60 символов на строку при ширине колонки)
+        text_length = len(response_text)
+        # Оцениваем количество строк: примерно 60-80 символов на строку в зависимости от ширины
+        estimated_lines = max(4, min(20, (text_length // 70) + 3))  # Минимум 4 строки, максимум 20
+        row_height = max(120, estimated_lines * 22)  # Минимум 120px, примерно 22px на строку с учетом padding
+        self.table.setRowHeight(row, row_height)
         
         # Сохраняем результат
         self.results_data[model_name] = (response, error)
@@ -471,6 +767,22 @@ class ResultsTableWidget(QWidget):
                     selected[model_name] = self.results_data[model_name]
         
         return selected
+    
+    def open_markdown_dialog(self, model_name: str, response_text: str):
+        """
+        Открытие диалога для просмотра ответа в формате Markdown.
+        
+        Args:
+            model_name: Название модели
+            response_text: Текст ответа
+        """
+        dialog = MarkdownViewDialog(
+            parent=self,
+            model_name=model_name,
+            response_text=response_text,
+            prompt_text=self.current_prompt_text
+        )
+        dialog.exec_()
     
     def save_selected(self):
         """Сохранение выбранных результатов в БД."""
