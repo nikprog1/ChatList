@@ -143,22 +143,32 @@ class ModelManager:
     def get_active_models(self) -> List[Model]:
         """
         Получение списка активных моделей.
+        Использует кэш, если он валиден.
         
         Returns:
             Список активных моделей
         """
+        # Для активных моделей кэш не используется, так как нужно всегда получать актуальные данные
+        # Но можно оптимизировать, если кэш содержит все модели
+        if self._cache_valid and self._models_cache is not None:
+            return [m for m in self._models_cache if m.is_active == 1]
         models_data = self.db.get_active_models()
         return [Model.from_dict(data) for data in models_data]
     
     def get_all_models(self) -> List[Model]:
         """
         Получение списка всех моделей.
+        Использует кэш для оптимизации.
         
         Returns:
             Список всех моделей
         """
+        if self._cache_valid and self._models_cache is not None:
+            return self._models_cache
         models_data = self.db.get_all_models()
-        return [Model.from_dict(data) for data in models_data]
+        self._models_cache = [Model.from_dict(data) for data in models_data]
+        self._cache_valid = True
+        return self._models_cache
     
     def get_model_by_id(self, model_id: int) -> Optional[Model]:
         """

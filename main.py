@@ -132,6 +132,7 @@ class PromptInputWidget(QWidget):
         self.tags_input = QTextEdit()
         self.tags_input.setPlaceholderText("обучение, ИИ, основы")
         self.tags_input.setMaximumHeight(50)
+        self.tags_input.setToolTip("Введите теги через запятую для категоризации промта (опционально)")
         tags_layout.addWidget(tags_label)
         tags_layout.addWidget(self.tags_input)
         layout.addLayout(tags_layout)
@@ -139,6 +140,7 @@ class PromptInputWidget(QWidget):
         # Кнопка отправки
         self.send_button = QPushButton("Отправить")
         self.send_button.clicked.connect(self.on_send_clicked)
+        self.send_button.setToolTip("Отправить промт всем активным моделям. Ответы будут отображены в таблице результатов.")
         self.send_button.setStyleSheet("""
             QPushButton {
                 background-color: #4CAF50;
@@ -600,11 +602,13 @@ class ResultsTableWidget(QWidget):
         # Заголовок
         title_label = QLabel("Результаты запросов")
         title_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        title_label.setToolTip("Таблица с результатами запросов ко всем активным моделям")
         layout.addWidget(title_label)
         
         # Прогресс-бар
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
+        self.progress_bar.setToolTip("Прогресс выполнения запросов к моделям")
         layout.addWidget(self.progress_bar)
         
         # Таблица результатов
@@ -645,12 +649,14 @@ class ResultsTableWidget(QWidget):
         
         self.clear_button = QPushButton("Очистить")
         self.clear_button.clicked.connect(self.clear_table)
+        self.clear_button.setToolTip("Очистить таблицу результатов")
         buttons_layout.addWidget(self.clear_button)
         
         buttons_layout.addStretch()
         
         self.save_button = QPushButton("Сохранить выбранные")
         self.save_button.clicked.connect(self.save_selected)
+        self.save_button.setToolTip("Сохранить отмеченные результаты в базу данных")
         self.save_button.setStyleSheet("""
             QPushButton {
                 background-color: #2196F3;

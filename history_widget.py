@@ -122,6 +122,7 @@ class HistoryWidget(QWidget):
         
         self.refresh_button = QPushButton("Обновить")
         self.refresh_button.clicked.connect(self.load_history)
+        self.refresh_button.setToolTip("Обновить список сохраненных результатов")
         header_layout.addWidget(self.refresh_button)
         
         layout.addLayout(header_layout)
@@ -158,10 +159,12 @@ class HistoryWidget(QWidget):
         
         self.view_button = QPushButton("Просмотр")
         self.view_button.clicked.connect(self.view_result_details)
+        self.view_button.setToolTip("Просмотр детальной информации о выбранном результате (или двойной клик на строке)")
         buttons_layout.addWidget(self.view_button)
         
         self.delete_button = QPushButton("Удалить выбранные")
         self.delete_button.clicked.connect(self.delete_selected_results)
+        self.delete_button.setToolTip("Удалить выбранные результаты из истории (отметьте чекбоксами)")
         self.delete_button.setStyleSheet("""
             QPushButton {
                 background-color: #f44336;
@@ -185,6 +188,7 @@ class HistoryWidget(QWidget):
         
         self.export_button = QPushButton("Экспорт выбранных")
         self.export_button.clicked.connect(self.export_selected)
+        self.export_button.setToolTip("Экспортировать выбранные результаты в файл (JSON или Markdown)")
         buttons_layout.addWidget(self.export_button)
         
         layout.addLayout(buttons_layout)

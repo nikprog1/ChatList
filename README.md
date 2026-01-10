@@ -235,9 +235,53 @@ ChatList/
 - ✅ История всех сохраненных результатов
 - ✅ Настройки таймаутов и других параметров
 
+## Тестирование
+
+Приложение покрыто UNIT и E2E тестами:
+
+### Запуск тестов:
+
+```powershell
+# Все тесты
+pytest tests/ -v
+
+# Только UNIT тесты
+pytest tests/unit/ -v -m unit
+
+# Только E2E тесты
+pytest tests/e2e/ -v -m e2e
+
+# С проверкой покрытия кода
+pytest tests/ --cov=. --cov-report=html
+Start-Process htmlcov/index.html
+```
+
+### Покрытие кода:
+- **db.py**: 95% ✅
+- **models.py**: 83% ✅
+- **network.py**: 60% ✅
+- **Общее покрытие**: 26%
+
+Подробности см. в `TESTING_PLAN.md` и `TESTING_SUMMARY.md`.
+
 ## Разработка
 
-Для разработчиков: см. файл `PLAN.md` для детального плана реализации и `DATABASE.md` для схемы базы данных.
+Для разработчиков:
+- `PLAN.md` - детальный план реализации
+- `DATABASE.md` - схема базы данных
+- `TESTING_PLAN.md` - план тестирования
+- `TESTING_SUMMARY.md` - итоговый отчет по тестированию
+- `RECOMMENDATIONS.md` - рекомендации по работе с повторяющимися запросами
+
+## Установка зависимостей для разработки
+
+```powershell
+# Основные зависимости
+pip install -r requirements.txt
+
+# Зависимости для тестирования
+pip install -r requirements-test.txt
+```
 
 ## Лицензия
 

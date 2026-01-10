@@ -28,6 +28,8 @@ class Database:
         """Установка соединения с базой данных."""
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row  # Возвращать результаты как словари
+        # Включаем поддержку внешних ключей для каскадного удаления
+        self.conn.execute("PRAGMA foreign_keys = ON")
     
     def init_db(self):
         """Создание всех таблиц при первом запуске."""
