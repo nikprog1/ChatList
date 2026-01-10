@@ -253,6 +253,77 @@ class Database:
         """, (search_pattern, search_pattern))
         return [dict(row) for row in cursor.fetchall()]
     
+    def get_prompts_without_results(self) -> List[Dict]:
+        """
+        Получение промтов, которые не имеют сохраненных результатов.
+        Полезно для поиска и удаления неиспользуемых промтов.
+        
+        Returns:
+            Список словарей с данными промтов без сохраненных результатов
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT p.* 
+            FROM prompts p
+            LEFT JOIN results r ON p.id = r.prompt_id
+            WHERE r.id IS NULL
+            ORDER BY p.date DESC
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+    
+    def get_prompts_with_results_count(self) -> List[Dict]:
+        """
+        Получение всех промтов с количеством связанных результатов.
+        
+        Returns:
+            Список словарей с данными промтов и количеством результатов
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("""
+            SELECT p.*, COUNT(r.id) as results_count
+            FROM prompts p
+            LEFT JOIN results r ON p.id = r.prompt_id
+            GROUP BY p.id
+            ORDER BY p.date DESC
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+    
+    def delete_prompt(self, prompt_id: int) -> bool:
+        """
+        Удаление промта по ID.
+        Все связанные результаты будут удалены автоматически (ON DELETE CASCADE).
+        
+        Args:
+            prompt_id: ID промта для удаления
+        
+        Returns:
+            True если промт удален успешно, False если промт не найден
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("DELETE FROM prompts WHERE id = ?", (prompt_id,))
+        self.conn.commit()
+        return cursor.rowcount > 0
+    
+    def delete_prompts(self, prompt_ids: List[int]) -> int:
+        """
+        Удаление нескольких промтов по списку ID.
+        Все связанные результаты будут удалены автоматически (ON DELETE CASCADE).
+        
+        Args:
+            prompt_ids: Список ID промтов для удаления
+        
+        Returns:
+            Количество удаленных промтов
+        """
+        if not prompt_ids:
+            return 0
+        
+        cursor = self.conn.cursor()
+        placeholders = ','.join(['?'] * len(prompt_ids))
+        cursor.execute(f"DELETE FROM prompts WHERE id IN ({placeholders})", prompt_ids)
+        self.conn.commit()
+        return cursor.rowcount
+    
     # Методы для работы с таблицей models
     
     def add_model(self, name: str, api_url: str, api_id: str, 

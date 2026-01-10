@@ -5,8 +5,9 @@
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QPushButton, QTableWidget, QTableWidgetItem,
                              QMessageBox, QHeaderView, QLineEdit, QDialog,
-                             QTextEdit)
+                             QTextEdit, QCheckBox)
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QColor
 from db import Database
 from typing import Optional, List, Dict
 
@@ -78,10 +79,12 @@ class ResultDetailDialog(QDialog):
         if not self.result:
             return
         
-        self.prompt_text.setPlainText(self.result.get('prompt', ''))
-        self.model_text.setText(self.result.get('model_name', ''))
-        self.date_text.setText(self.result.get('saved_at', ''))
-        self.response_text.setPlainText(self.result.get('response_text', ''))
+        # Обрабатываем случай None для всех полей
+        prompt = self.result.get('prompt') or '(Промт был удален)'
+        self.prompt_text.setPlainText(prompt)
+        self.model_text.setText(self.result.get('model_name') or '(Не указана)')
+        self.date_text.setText(self.result.get('saved_at') or '(Не указана)')
+        self.response_text.setPlainText(self.result.get('response_text') or '(Пустой ответ)')
 
 
 class HistoryWidget(QWidget):
@@ -125,20 +128,22 @@ class HistoryWidget(QWidget):
         
         # Таблица результатов
         self.table = QTableWidget()
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["ID", "Промт", "Модель", "Дата сохранения", "Ответ (первые 100 символов)"])
+        self.table.setColumnCount(7)  # Добавлены колонки "Выбрать" и "ID запроса"
+        self.table.setHorizontalHeaderLabels(["Выбрать", "ID результата", "ID запроса", "Промт", "Модель", "Дата сохранения", "Ответ (первые 100 символов)"])
         
         # Настройка таблицы
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # ID
-        header.setSectionResizeMode(1, QHeaderView.Stretch)  # Промт
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Модель
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Дата
-        header.setSectionResizeMode(4, QHeaderView.Stretch)  # Ответ
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # Чекбокс
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # ID результата
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # ID запроса
+        header.setSectionResizeMode(3, QHeaderView.Stretch)  # Промт
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # Модель
+        header.setSectionResizeMode(5, QHeaderView.ResizeToContents)  # Дата
+        header.setSectionResizeMode(6, QHeaderView.Stretch)  # Ответ
         
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
-        self.table.setSelectionMode(QTableWidget.SingleSelection)
+        self.table.setSelectionMode(QTableWidget.ExtendedSelection)  # Множественный выбор строк
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSortingEnabled(True)
@@ -155,8 +160,8 @@ class HistoryWidget(QWidget):
         self.view_button.clicked.connect(self.view_result_details)
         buttons_layout.addWidget(self.view_button)
         
-        self.delete_button = QPushButton("Удалить")
-        self.delete_button.clicked.connect(self.delete_result)
+        self.delete_button = QPushButton("Удалить выбранные")
+        self.delete_button.clicked.connect(self.delete_selected_results)
         self.delete_button.setStyleSheet("""
             QPushButton {
                 background-color: #f44336;
@@ -168,6 +173,10 @@ class HistoryWidget(QWidget):
             }
             QPushButton:hover {
                 background-color: #d32f2f;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
             }
         """)
         buttons_layout.addWidget(self.delete_button)
@@ -181,6 +190,9 @@ class HistoryWidget(QWidget):
         layout.addLayout(buttons_layout)
         
         self.setLayout(layout)
+        
+        # Изначально кнопка удаления отключена
+        self.delete_button.setEnabled(False)
     
     def load_history(self):
         """Загрузка истории результатов."""
@@ -188,32 +200,54 @@ class HistoryWidget(QWidget):
         self.table.setRowCount(len(results))
         
         for row, result in enumerate(results):
-            # ID
-            id_item = QTableWidgetItem(str(result.get('id', '')))
-            id_item.setData(Qt.UserRole, result)
-            self.table.setItem(row, 0, id_item)
+            # Колонка "Выбрать" - чекбокс
+            checkbox = QCheckBox()
+            checkbox.setChecked(False)
+            checkbox.stateChanged.connect(self.update_delete_button_state)  # Обновляем состояние кнопки при изменении
+            self.table.setCellWidget(row, 0, checkbox)
             
-            # Промт (обрезанный)
-            prompt = result.get('prompt', '')
-            prompt_short = prompt[:50] + "..." if len(prompt) > 50 else prompt
+            # ID результата
+            result_id = result.get('id', '')
+            id_item = QTableWidgetItem(str(result_id))
+            id_item.setData(Qt.UserRole, result)
+            self.table.setItem(row, 1, id_item)
+            
+            # ID запроса (prompt_id)
+            prompt_id = result.get('prompt_id', '')
+            prompt_id_item = QTableWidgetItem(str(prompt_id) if prompt_id else '(Удален)')
+            if prompt_id:
+                prompt_id_item.setToolTip(f"ID промта: {prompt_id}")
+            else:
+                prompt_id_item.setToolTip("Промт был удален")
+                prompt_id_item.setForeground(QColor(128, 128, 128))  # Серый цвет для удаленных промтов
+            self.table.setItem(row, 2, prompt_id_item)
+            
+            # Промт (обрезанный) - обрабатываем случай None
+            prompt = result.get('prompt') or ''  # Если None, используем пустую строку
+            prompt_short = prompt[:50] + "..." if prompt and len(prompt) > 50 else (prompt or '(Промт удален)')
             prompt_item = QTableWidgetItem(prompt_short)
-            prompt_item.setToolTip(prompt)
-            self.table.setItem(row, 1, prompt_item)
+            prompt_item.setToolTip(prompt or '(Промт был удален)')
+            self.table.setItem(row, 3, prompt_item)
             
             # Модель
-            model_item = QTableWidgetItem(result.get('model_name', ''))
-            self.table.setItem(row, 2, model_item)
+            model_name = result.get('model_name') or ''
+            model_item = QTableWidgetItem(model_name)
+            self.table.setItem(row, 4, model_item)
             
             # Дата
-            date_item = QTableWidgetItem(result.get('saved_at', ''))
-            self.table.setItem(row, 3, date_item)
+            saved_at = result.get('saved_at') or ''
+            date_item = QTableWidgetItem(saved_at)
+            self.table.setItem(row, 5, date_item)
             
-            # Ответ (обрезанный)
-            response = result.get('response_text', '')
-            response_short = response[:100] + "..." if len(response) > 100 else response
+            # Ответ (обрезанный) - обрабатываем случай None
+            response = result.get('response_text') or ''  # Если None, используем пустую строку
+            response_short = response[:100] + "..." if response and len(response) > 100 else (response or '(Пустой ответ)')
             response_item = QTableWidgetItem(response_short)
-            response_item.setToolTip(response)
-            self.table.setItem(row, 4, response_item)
+            response_item.setToolTip(response or '(Пустой ответ)')
+            self.table.setItem(row, 6, response_item)
+        
+        # Обновляем состояние кнопки удаления
+        self.update_delete_button_state()
     
     def on_search_changed(self, text: str):
         """Обработка изменения поискового запроса."""
@@ -226,38 +260,81 @@ class HistoryWidget(QWidget):
         self.table.setRowCount(len(results))
         
         for row, result in enumerate(results):
-            id_item = QTableWidgetItem(str(result.get('id', '')))
+            # Колонка "Выбрать" - чекбокс
+            checkbox = QCheckBox()
+            checkbox.setChecked(False)
+            checkbox.stateChanged.connect(self.update_delete_button_state)  # Обновляем состояние кнопки при изменении
+            self.table.setCellWidget(row, 0, checkbox)
+            
+            # ID результата
+            result_id = result.get('id', '')
+            id_item = QTableWidgetItem(str(result_id))
             id_item.setData(Qt.UserRole, result)
-            self.table.setItem(row, 0, id_item)
+            self.table.setItem(row, 1, id_item)
             
-            prompt = result.get('prompt', '')
-            prompt_short = prompt[:50] + "..." if len(prompt) > 50 else prompt
+            # ID запроса (prompt_id)
+            prompt_id = result.get('prompt_id', '')
+            prompt_id_item = QTableWidgetItem(str(prompt_id) if prompt_id else '(Удален)')
+            if prompt_id:
+                prompt_id_item.setToolTip(f"ID промта: {prompt_id}")
+            else:
+                prompt_id_item.setToolTip("Промт был удален")
+                prompt_id_item.setForeground(QColor(128, 128, 128))  # Серый цвет для удаленных промтов
+            self.table.setItem(row, 2, prompt_id_item)
+            
+            # Промт (обрезанный) - обрабатываем случай None
+            prompt = result.get('prompt') or ''  # Если None, используем пустую строку
+            prompt_short = prompt[:50] + "..." if prompt and len(prompt) > 50 else (prompt or '(Промт удален)')
             prompt_item = QTableWidgetItem(prompt_short)
-            prompt_item.setToolTip(prompt)
-            self.table.setItem(row, 1, prompt_item)
+            prompt_item.setToolTip(prompt or '(Промт был удален)')
+            self.table.setItem(row, 3, prompt_item)
             
-            model_item = QTableWidgetItem(result.get('model_name', ''))
-            self.table.setItem(row, 2, model_item)
+            model_name = result.get('model_name') or ''
+            model_item = QTableWidgetItem(model_name)
+            self.table.setItem(row, 4, model_item)
             
-            date_item = QTableWidgetItem(result.get('saved_at', ''))
-            self.table.setItem(row, 3, date_item)
+            saved_at = result.get('saved_at') or ''
+            date_item = QTableWidgetItem(saved_at)
+            self.table.setItem(row, 5, date_item)
             
-            response = result.get('response_text', '')
-            response_short = response[:100] + "..." if len(response) > 100 else response
+            # Ответ (обрезанный) - обрабатываем случай None
+            response = result.get('response_text') or ''  # Если None, используем пустую строку
+            response_short = response[:100] + "..." if response and len(response) > 100 else (response or '(Пустой ответ)')
             response_item = QTableWidgetItem(response_short)
-            response_item.setToolTip(response)
-            self.table.setItem(row, 4, response_item)
+            response_item.setToolTip(response or '(Пустой ответ)')
+            self.table.setItem(row, 6, response_item)
+        
+        # Обновляем состояние кнопки удаления
+        self.update_delete_button_state()
     
     def get_selected_result(self) -> Optional[Dict]:
-        """Получение выбранного результата."""
+        """Получение выбранного результата (для совместимости со старым кодом)."""
         current_row = self.table.currentRow()
         if current_row < 0:
             return None
         
-        id_item = self.table.item(current_row, 0)
+        id_item = self.table.item(current_row, 1)  # ID теперь в колонке 1
         if id_item:
             return id_item.data(Qt.UserRole)
         return None
+    
+    def get_selected_results(self) -> List[Dict]:
+        """Получение всех выбранных результатов."""
+        selected = []
+        for row in range(self.table.rowCount()):
+            checkbox = self.table.cellWidget(row, 0)
+            if checkbox and checkbox.isChecked():
+                id_item = self.table.item(row, 1)  # ID теперь в колонке 1
+                if id_item:
+                    result = id_item.data(Qt.UserRole)
+                    if result:
+                        selected.append(result)
+        return selected
+    
+    def update_delete_button_state(self):
+        """Обновление состояния кнопки удаления в зависимости от выбранных элементов."""
+        selected = self.get_selected_results()
+        self.delete_button.setEnabled(len(selected) > 0)
     
     def view_result_details(self):
         """Просмотр детальной информации о результате."""
@@ -269,41 +346,64 @@ class HistoryWidget(QWidget):
         dialog = ResultDetailDialog(self, result)
         dialog.exec_()
     
-    def delete_result(self):
-        """Удаление выбранного результата."""
-        result = self.get_selected_result()
-        if not result:
-            QMessageBox.warning(self, "Предупреждение", "Выберите результат для удаления!")
+    def delete_selected_results(self):
+        """Удаление выбранных результатов."""
+        selected = self.get_selected_results()
+        
+        if not selected:
+            QMessageBox.warning(self, "Предупреждение", "Выберите результаты для удаления!")
             return
+        
+        count = len(selected)
+        if count == 1:
+            message = "Вы уверены, что хотите удалить этот результат?"
+        else:
+            message = f"Вы уверены, что хотите удалить {count} выбранных результатов?"
         
         reply = QMessageBox.question(
             self,
             "Подтверждение",
-            "Вы уверены, что хотите удалить этот результат?",
+            message,
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No
         )
         
         if reply == QMessageBox.Yes:
-            cursor = self.db.conn.cursor()
-            cursor.execute("DELETE FROM results WHERE id = ?", (result.get('id'),))
-            self.db.conn.commit()
-            
-            QMessageBox.information(self, "Успех", "Результат удален успешно!")
-            self.load_history()
+            try:
+                cursor = self.db.conn.cursor()
+                deleted_count = 0
+                
+                for result in selected:
+                    result_id = result.get('id')
+                    if result_id:
+                        cursor.execute("DELETE FROM results WHERE id = ?", (result_id,))
+                        deleted_count += 1
+                
+                self.db.conn.commit()
+                
+                if deleted_count > 0:
+                    if deleted_count == 1:
+                        QMessageBox.information(self, "Успех", "Результат удален успешно!")
+                    else:
+                        QMessageBox.information(self, "Успех", f"Удалено результатов: {deleted_count}")
+                    self.load_history()
+                else:
+                    QMessageBox.warning(self, "Предупреждение", "Не удалось удалить результаты!")
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Ошибка при удалении результатов: {str(e)}")
     
     def export_selected(self):
         """Экспорт выбранных результатов."""
-        result = self.get_selected_result()
-        if not result:
-            QMessageBox.warning(self, "Предупреждение", "Выберите результат для экспорта!")
+        selected = self.get_selected_results()
+        if not selected:
+            QMessageBox.warning(self, "Предупреждение", "Выберите результаты для экспорта!")
             return
         
         # Простой экспорт в текстовый файл (можно расширить)
         from PyQt5.QtWidgets import QFileDialog
         filename, _ = QFileDialog.getSaveFileName(
             self,
-            "Сохранить результат",
+            "Сохранить результаты",
             "",
             "Markdown Files (*.md);;JSON Files (*.json);;Text Files (*.txt)"
         )
@@ -313,16 +413,25 @@ class HistoryWidget(QWidget):
                 if filename.endswith('.json'):
                     import json
                     with open(filename, 'w', encoding='utf-8') as f:
-                        json.dump(result, f, ensure_ascii=False, indent=2)
+                        json.dump(selected, f, ensure_ascii=False, indent=2)
                 else:
                     # Markdown или текстовый формат
                     with open(filename, 'w', encoding='utf-8') as f:
-                        f.write(f"# Результат запроса\n\n")
-                        f.write(f"**Промт:**\n{result.get('prompt', '')}\n\n")
-                        f.write(f"**Модель:** {result.get('model_name', '')}\n\n")
-                        f.write(f"**Дата:** {result.get('saved_at', '')}\n\n")
-                        f.write(f"**Ответ:**\n{result.get('response_text', '')}\n")
+                        f.write(f"# Экспорт результатов ({len(selected)} шт.)\n\n")
+                        for idx, result in enumerate(selected, 1):
+                            f.write(f"## Результат {idx}\n\n")
+                            prompt = result.get('prompt') or '(Промт был удален)'
+                            f.write(f"**Промт:**\n{prompt}\n\n")
+                            f.write(f"**Модель:** {result.get('model_name') or '(Не указана)'}\n\n")
+                            f.write(f"**Дата:** {result.get('saved_at') or '(Не указана)'}\n\n")
+                            response = result.get('response_text') or '(Пустой ответ)'
+                            f.write(f"**Ответ:**\n{response}\n\n")
+                            f.write("---\n\n")  # Разделитель между результатами
                 
-                QMessageBox.information(self, "Успех", f"Результат экспортирован в {filename}")
+                count = len(selected)
+                if count == 1:
+                    QMessageBox.information(self, "Успех", f"Результат экспортирован в {filename}")
+                else:
+                    QMessageBox.information(self, "Успех", f"Экспортировано результатов: {count}\nФайл: {filename}")
             except Exception as e:
-                QMessageBox.critical(self, "Ошибка", f"Не удалось экспортировать результат: {str(e)}")
+                QMessageBox.critical(self, "Ошибка", f"Не удалось экспортировать результаты: {str(e)}")

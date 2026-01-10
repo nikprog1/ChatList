@@ -52,6 +52,68 @@ class PromptInputWidget(QWidget):
         self.saved_prompts_combo.currentIndexChanged.connect(self.on_prompt_selected)
         saved_prompt_layout.addWidget(saved_prompt_label)
         saved_prompt_layout.addWidget(self.saved_prompts_combo)
+        
+        # Кнопка фильтрации промтов без результатов
+        self.filter_without_results_button = QPushButton("Без результатов")
+        self.filter_without_results_button.clicked.connect(self.filter_prompts_without_results)
+        self.filter_without_results_button.setToolTip("Показать только промты без сохраненных результатов")
+        self.filter_without_results_button.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                padding: 5px 15px;
+                font-weight: bold;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+        """)
+        saved_prompt_layout.addWidget(self.filter_without_results_button)
+        
+        # Кнопка удаления выбранного промта
+        self.delete_prompt_button = QPushButton("Удалить")
+        self.delete_prompt_button.clicked.connect(self.delete_selected_prompt)
+        self.delete_prompt_button.setEnabled(False)  # Изначально отключена (выбран "Новый промт")
+        self.delete_prompt_button.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                padding: 5px 15px;
+                font-weight: bold;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+            }
+        """)
+        saved_prompt_layout.addWidget(self.delete_prompt_button)
+        
+        # Кнопка показа всех промтов
+        self.show_all_prompts_button = QPushButton("Все")
+        self.show_all_prompts_button.clicked.connect(self.load_saved_prompts)
+        self.show_all_prompts_button.setToolTip("Показать все сохраненные промты")
+        self.show_all_prompts_button.setStyleSheet("""
+            QPushButton {
+                background-color: #9E9E9E;
+                color: white;
+                padding: 5px 15px;
+                font-weight: bold;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #757575;
+            }
+        """)
+        saved_prompt_layout.addWidget(self.show_all_prompts_button)
+        
         layout.addLayout(saved_prompt_layout)
         
         # Или ввод нового промта
@@ -106,18 +168,59 @@ class PromptInputWidget(QWidget):
         
         prompts = self.db.get_all_prompts()
         for prompt in prompts:
-            # Отображение промта с ограничением по длине
-            display_text = prompt['prompt'][:50] + "..." if len(prompt['prompt']) > 50 else prompt['prompt']
-            display_text = f"[{prompt['date']}] {display_text}"
+            # Отображение промта с ID, датой и ограничением по длине
+            prompt_id = prompt.get('id', 'N/A')
+            prompt_text = prompt['prompt'][:50] + "..." if len(prompt['prompt']) > 50 else prompt['prompt']
+            date = prompt.get('date', '')
+            display_text = f"ID: {prompt_id} | [{date}] {prompt_text}"
             self.saved_prompts_combo.addItem(display_text, prompt)
     
     def on_prompt_selected(self, index):
         """Обработка выбора сохраненного промта."""
+        # Активируем/деактивируем кнопку удаления в зависимости от выбора
+        self.delete_prompt_button.setEnabled(index > 0)  # Активна только если выбран сохраненный промт
+        
         if index > 0:  # Не "Новый промт"
             prompt_data = self.saved_prompts_combo.itemData(index)
             if prompt_data:
                 self.prompt_input.setPlainText(prompt_data['prompt'])
                 self.tags_input.setPlainText(prompt_data.get('tags', ''))
+        else:
+            # Если выбран "Новый промт", очищаем поля
+            self.prompt_input.clear()
+            self.tags_input.clear()
+    
+    def filter_prompts_without_results(self):
+        """Фильтрация промтов без сохраненных результатов."""
+        prompts_without_results = self.db.get_prompts_without_results()
+        
+        self.saved_prompts_combo.clear()
+        self.saved_prompts_combo.addItem("-- Новый промт --", None)
+        
+        if not prompts_without_results:
+            QMessageBox.information(
+                self,
+                "Информация",
+                "Нет промтов без сохраненных результатов.\nВсе промты имеют связанные результаты."
+            )
+            # Загружаем все промты
+            self.load_saved_prompts()
+            return
+        
+        # Добавляем только промты без результатов
+        for prompt in prompts_without_results:
+            prompt_id = prompt.get('id', 'N/A')
+            prompt_text = prompt['prompt'][:50] + "..." if len(prompt['prompt']) > 50 else prompt['prompt']
+            date = prompt.get('date', '')
+            display_text = f"ID: {prompt_id} | [{date}] {prompt_text} ⚠ (без результатов)"
+            self.saved_prompts_combo.addItem(display_text, prompt)
+        
+        QMessageBox.information(
+            self,
+            "Фильтр применен",
+            f"Найдено промтов без сохраненных результатов: {len(prompts_without_results)}\n\n"
+            "Эти промты можно безопасно удалить, так как они не связаны с сохраненными результатами."
+        )
     
     def on_send_clicked(self):
         """Обработка нажатия кнопки отправки."""
@@ -150,6 +253,51 @@ class PromptInputWidget(QWidget):
     def get_current_prompt(self) -> str:
         """Получение текущего текста промта."""
         return self.prompt_input.toPlainText().strip()
+    
+    def delete_selected_prompt(self):
+        """Удаление выбранного сохраненного промта."""
+        current_index = self.saved_prompts_combo.currentIndex()
+        
+        # Проверяем, что выбран сохраненный промт (не "Новый промт")
+        if current_index == 0:
+            QMessageBox.warning(self, "Предупреждение", "Выберите сохраненный промт для удаления!")
+            return
+        
+        prompt_data = self.saved_prompts_combo.itemData(current_index)
+        if not prompt_data:
+            QMessageBox.warning(self, "Предупреждение", "Не удалось получить данные промта!")
+            return
+        
+        prompt_id = prompt_data.get('id')
+        prompt_text = prompt_data.get('prompt', '')[:50] + "..." if len(prompt_data.get('prompt', '')) > 50 else prompt_data.get('prompt', '')
+        
+        # Подтверждение удаления
+        reply = QMessageBox.question(
+            self,
+            "Подтверждение",
+            f"Вы уверены, что хотите удалить этот промт?\n\n{prompt_text}\n\nВсе связанные результаты также будут удалены!",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            try:
+                # Удаление промта (связанные результаты удалятся автоматически благодаря ON DELETE CASCADE)
+                success = self.db.delete_prompt(prompt_id)
+                
+                if success:
+                    QMessageBox.information(self, "Успех", "Промт удален успешно!")
+                    # Обновляем список промтов
+                    self.load_saved_prompts()
+                    # Сбрасываем выбор на "Новый промт"
+                    self.saved_prompts_combo.setCurrentIndex(0)
+                    # Очищаем поля
+                    self.prompt_input.clear()
+                    self.tags_input.clear()
+                else:
+                    QMessageBox.warning(self, "Предупреждение", "Не удалось удалить промт!")
+            except Exception as e:
+                QMessageBox.critical(self, "Ошибка", f"Ошибка при удалении промта: {str(e)}")
 
 
 class RequestThread(QThread):
