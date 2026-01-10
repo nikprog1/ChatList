@@ -1,0 +1,5 @@
+PyQt5==5.15.10
+pyinstaller>=6.15.0
+httpx==0.25.2
+python-dotenv==1.0.0
+
