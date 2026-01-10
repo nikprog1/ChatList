@@ -8,7 +8,35 @@ from typing import List, Optional, Dict
 from dotenv import load_dotenv
 
 # Загрузка переменных окружения из .env файла
-load_dotenv()
+# Сначала пробуем загрузить .env.local (для локальной разработки), затем .env
+env_local_path = '.env.local'
+env_path = '.env'
+
+# Проверяем, что файл не пустой перед загрузкой
+if os.path.exists(env_local_path):
+    file_size = os.path.getsize(env_local_path)
+    if file_size > 0:
+        load_dotenv(env_local_path, override=True)  # .env.local имеет приоритет
+        print(f"[INFO] Загружен {env_local_path} ({file_size} байт)")
+    else:
+        print(f"[WARNING] Файл {env_local_path} существует, но пустой (0 байт)")
+        # Пробуем загрузить .env или системные переменные
+        if os.path.exists(env_path) and os.path.getsize(env_path) > 0:
+            load_dotenv(env_path, override=True)
+            print(f"[INFO] Загружен {env_path} вместо пустого {env_local_path}")
+        else:
+            load_dotenv()  # Попытка загрузить из системных переменных
+elif os.path.exists(env_path):
+    file_size = os.path.getsize(env_path)
+    if file_size > 0:
+        load_dotenv(env_path, override=True)  # Загружаем .env, если .env.local нет
+        print(f"[INFO] Загружен {env_path} ({file_size} байт)")
+    else:
+        print(f"[WARNING] Файл {env_path} существует, но пустой (0 байт)")
+        load_dotenv()  # Попытка загрузить из системных переменных
+else:
+    load_dotenv()  # Попытка загрузить .env или системные переменные
+    print(f"[INFO] Попытка загрузки из системных переменных окружения")
 
 
 class Model:

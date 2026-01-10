@@ -92,6 +92,7 @@ class Database:
         default_settings = [
             ('request_timeout', '30', 'Таймаут запросов к API в секундах'),
             ('max_concurrent_requests', '5', 'Максимальное количество одновременных запросов'),
+            ('max_tokens', '2048', 'Максимальное количество токенов в ответе (для избежания ошибки 402, по умолчанию 2048 для бесплатных аккаунтов)'),
             ('auto_save_prompts', '1', 'Автоматическое сохранение всех промтов'),
             ('default_provider', 'openai', 'Провайдер по умолчанию'),
             ('ui_theme', 'default', 'Тема интерфейса'),
@@ -102,7 +103,86 @@ class Database:
             INSERT OR IGNORE INTO settings (key, value, description) VALUES (?, ?, ?)
         """, default_settings)
         
+        # Инициализация предустановленных моделей OpenRouter
+        self.init_default_models(cursor)
+        
         self.conn.commit()
+    
+    def init_default_models(self, cursor):
+        """
+        Инициализация предустановленных моделей OpenRouter.
+        Модели добавляются только если их еще нет в БД.
+        
+        Args:
+            cursor: Курсор базы данных
+        """
+        # Список предустановленных моделей OpenRouter
+        default_models = [
+            ('allenai/molmo-2-8b:free', 'openrouter'),  # Исправлено: было allenai/molmo-2-8b
+            ('deepseek/deepseek-r1-0528', 'openrouter'),
+            ('google/gemma-3-27b-it', 'openrouter'),  # Исправлено: было google/gemma-3-27b
+            ('google/gemini-2.0-flash-exp', 'openrouter'),
+            ('kwaipilot/kat-coder-pro', 'openrouter'),
+            ('meta-llama/llama-3.3-70b-instruct', 'openrouter'),
+            ('mistralai/devstral-2512', 'openrouter'),
+            ('nvidia/nemotron-3-nano-30b-a3b', 'openrouter'),
+            ('nvidia/nemotron-nano-12b-v2-vl', 'openrouter'),
+            ('openai/gpt-oss-120b', 'openrouter'),
+            ('qwen/qwen3-coder', 'openrouter'),
+            ('tngtech/deepseek-r1t-chimera', 'openrouter'),
+            ('tngtech/deepseek-r1t2-chimera', 'openrouter'),
+            ('tngtech/tng-r1t-chimera', 'openrouter'),
+            ('cognitivecomputations/dolphin-mistral-24b-venice-edition:free', 'openrouter'),  # Исправлено: было cognitivecomputations/dolphin-mistral-24b-venice-edition
+            ('xiaomi/mimo-v2-flash', 'openrouter'),
+            ('z-ai/glm-4.5-air', 'openrouter'),
+        ]
+        
+        # URL OpenRouter API
+        openrouter_url = 'https://openrouter.ai/api/v1/chat/completions'
+        openrouter_api_id = 'OPENROUTER_API_KEY'
+        
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Карта исправлений названий моделей (старое название -> новое название)
+        model_name_fixes = {
+            'google/gemma-3-27b': 'google/gemma-3-27b-it',  # Исправление неправильного названия
+            'allenai/molmo-2-8b': 'allenai/molmo-2-8b:free',  # Добавлен суффикс :free
+            'cognitivecomputations/dolphin-mistral-24b-venice-edition': 'cognitivecomputations/dolphin-mistral-24b-venice-edition:free',  # Добавлен суффикс :free
+        }
+        
+        # Обновляем существующие модели с неправильными названиями
+        for old_name, new_name in model_name_fixes.items():
+            cursor.execute("SELECT id, name FROM models WHERE name = ?", (old_name,))
+            old_model = cursor.fetchone()
+            if old_model:
+                # Проверяем, нет ли уже модели с новым названием
+                cursor.execute("SELECT COUNT(*) FROM models WHERE name = ?", (new_name,))
+                new_exists = cursor.fetchone()[0] > 0
+                if not new_exists:
+                    # Обновляем название существующей модели
+                    cursor.execute("""
+                        UPDATE models SET name = ?, updated_at = ? 
+                        WHERE id = ?
+                    """, (new_name, now, old_model[0]))
+                    print(f"[INFO] Обновлено название модели: '{old_name}' -> '{new_name}'")
+                else:
+                    # Если новая модель уже существует, удаляем старую
+                    cursor.execute("DELETE FROM models WHERE id = ?", (old_model[0],))
+                    print(f"[INFO] Удалена дублирующая модель: '{old_name}' (уже существует '{new_name}')")
+        
+        # Добавляем модели, если их еще нет
+        for model_name, provider_type in default_models:
+            # Проверяем, существует ли уже модель с таким именем
+            cursor.execute("SELECT COUNT(*) FROM models WHERE name = ?", (model_name,))
+            exists = cursor.fetchone()[0] > 0
+            
+            if not exists:
+                # Добавляем новую модель (по умолчанию неактивна, чтобы пользователь мог выбрать нужные)
+                cursor.execute("""
+                    INSERT INTO models (name, api_url, api_id, provider_type, is_active, 
+                                      created_at, updated_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (model_name, openrouter_url, openrouter_api_id, provider_type, 0, now, now))
     
     # Методы для работы с таблицей prompts
     
@@ -238,6 +318,21 @@ class Database:
         cursor.execute("""
             UPDATE models SET is_active = ?, updated_at = ? WHERE id = ?
         """, (is_active, now, model_id))
+        self.conn.commit()
+        return cursor.rowcount > 0
+    
+    def delete_model(self, model_id: int) -> bool:
+        """
+        Удаление модели.
+        
+        Args:
+            model_id: ID модели
+        
+        Returns:
+            True если удаление успешно, False если модель не найдена
+        """
+        cursor = self.conn.cursor()
+        cursor.execute("DELETE FROM models WHERE id = ?", (model_id,))
         self.conn.commit()
         return cursor.rowcount > 0
     

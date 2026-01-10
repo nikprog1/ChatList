@@ -20,7 +20,7 @@ class APIProvider(ABC):
     """Базовый класс для унификации работы с разными API провайдерами."""
     
     @abstractmethod
-    async def send_request(self, model: Model, prompt: str, timeout: int = 30) -> Tuple[str, Optional[str]]:
+    async def send_request(self, model: Model, prompt: str, timeout: int = 30, max_tokens: Optional[int] = None) -> Tuple[str, Optional[str]]:
         """
         Отправка запроса к API.
         
@@ -28,6 +28,7 @@ class APIProvider(ABC):
             model: Модель для отправки запроса
             prompt: Текст промта
             timeout: Таймаут запроса в секундах
+            max_tokens: Максимальное количество токенов в ответе (None = не ограничивать)
         
         Returns:
             Кортеж (response_text, error_message)
@@ -70,7 +71,7 @@ class APIProvider(ABC):
 class OpenAIProvider(APIProvider):
     """Провайдер для OpenAI API."""
     
-    async def send_request(self, model: Model, prompt: str, timeout: int = 30) -> Tuple[str, Optional[str]]:
+    async def send_request(self, model: Model, prompt: str, timeout: int = 30, max_tokens: Optional[int] = None) -> Tuple[str, Optional[str]]:
         """Отправка запроса к OpenAI API."""
         api_key = model.get_api_key()
         if not api_key:
@@ -84,6 +85,8 @@ class OpenAIProvider(APIProvider):
             ],
             "temperature": 0.7
         }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
         
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
@@ -113,7 +116,15 @@ class OpenAIProvider(APIProvider):
             self.log_request(model, prompt, error=error)
             return "", error
         except httpx.HTTPStatusError as e:
-            error = f"HTTP ошибка {e.response.status_code}: {e.response.text}"
+            # Улучшенная обработка ошибок
+            error_text = e.response.text
+            try:
+                error_data = e.response.json()
+                if "error" in error_data and "message" in error_data["error"]:
+                    error_text = error_data["error"]["message"]
+            except:
+                pass
+            error = f"HTTP ошибка {e.response.status_code}: {error_text[:300]}"
             self.log_request(model, prompt, error=error)
             return "", error
         except Exception as e:
@@ -133,7 +144,7 @@ class OpenAIProvider(APIProvider):
 class DeepSeekProvider(APIProvider):
     """Провайдер для DeepSeek API."""
     
-    async def send_request(self, model: Model, prompt: str, timeout: int = 30) -> Tuple[str, Optional[str]]:
+    async def send_request(self, model: Model, prompt: str, timeout: int = 30, max_tokens: Optional[int] = None) -> Tuple[str, Optional[str]]:
         """Отправка запроса к DeepSeek API."""
         api_key = model.get_api_key()
         if not api_key:
@@ -147,6 +158,8 @@ class DeepSeekProvider(APIProvider):
             ],
             "temperature": 0.7
         }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
         
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
@@ -176,7 +189,14 @@ class DeepSeekProvider(APIProvider):
             self.log_request(model, prompt, error=error)
             return "", error
         except httpx.HTTPStatusError as e:
-            error = f"HTTP ошибка {e.response.status_code}: {e.response.text}"
+            error_text = e.response.text
+            try:
+                error_data = e.response.json()
+                if "error" in error_data and "message" in error_data["error"]:
+                    error_text = error_data["error"]["message"]
+            except:
+                pass
+            error = f"HTTP ошибка {e.response.status_code}: {error_text[:300]}"
             self.log_request(model, prompt, error=error)
             return "", error
         except Exception as e:
@@ -196,7 +216,7 @@ class DeepSeekProvider(APIProvider):
 class GroqProvider(APIProvider):
     """Провайдер для Groq API."""
     
-    async def send_request(self, model: Model, prompt: str, timeout: int = 30) -> Tuple[str, Optional[str]]:
+    async def send_request(self, model: Model, prompt: str, timeout: int = 30, max_tokens: Optional[int] = None) -> Tuple[str, Optional[str]]:
         """Отправка запроса к Groq API."""
         api_key = model.get_api_key()
         if not api_key:
@@ -210,6 +230,8 @@ class GroqProvider(APIProvider):
             ],
             "temperature": 0.7
         }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
         
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
@@ -239,7 +261,14 @@ class GroqProvider(APIProvider):
             self.log_request(model, prompt, error=error)
             return "", error
         except httpx.HTTPStatusError as e:
-            error = f"HTTP ошибка {e.response.status_code}: {e.response.text}"
+            error_text = e.response.text
+            try:
+                error_data = e.response.json()
+                if "error" in error_data and "message" in error_data["error"]:
+                    error_text = error_data["error"]["message"]
+            except:
+                pass
+            error = f"HTTP ошибка {e.response.status_code}: {error_text[:300]}"
             self.log_request(model, prompt, error=error)
             return "", error
         except Exception as e:
@@ -256,10 +285,153 @@ class GroqProvider(APIProvider):
         }
 
 
+class OpenRouterProvider(APIProvider):
+    """Провайдер для OpenRouter API."""
+    
+    async def send_request(self, model: Model, prompt: str, timeout: int = 30, max_tokens: Optional[int] = None) -> Tuple[str, Optional[str]]:
+        """Отправка запроса к OpenRouter API."""
+        api_key = model.get_api_key()
+        if not api_key:
+            return "", "API-ключ не найден"
+        
+        headers = self.get_headers(model)
+        payload = {
+            "model": model.name,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.7
+        }
+        
+        # Добавляем max_tokens, если указан (важно для избежания ошибки 402)
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
+        else:
+            # Для OpenRouter по умолчанию устанавливаем меньшее ограничение для бесплатных аккаунтов
+            # Бесплатные аккаунты обычно имеют лимит ~5000 токенов
+            payload["max_tokens"] = 2048  # Более безопасное значение по умолчанию для бесплатных аккаунтов
+        
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    model.api_url,
+                    headers=headers,
+                    json=payload
+                )
+                
+                # Обработка ошибок перед raise_for_status для более понятных сообщений
+                if response.status_code == 402:
+                    try:
+                        error_data = response.json()
+                        error_msg = error_data.get("error", {}).get("message", "")
+                        if "credits" in error_msg.lower() or "max_tokens" in error_msg.lower():
+                            # Извлекаем понятное сообщение
+                            error = f"Недостаточно кредитов или слишком много токенов. Попробуйте уменьшить max_tokens в настройках.\n\nДетали: {error_msg[:200]}"
+                        else:
+                            error = f"Ошибка 402: {error_msg[:200]}"
+                    except:
+                        error = f"HTTP ошибка 402: Недостаточно кредитов. Проверьте баланс на https://openrouter.ai/settings/credits"
+                    self.log_request(model, prompt, error=error)
+                    return "", error
+                
+                # Обработка ошибки 404 (модель не найдена)
+                if response.status_code == 404:
+                    try:
+                        error_data = response.json()
+                        error_msg = error_data.get("error", {}).get("message", "")
+                        if "endpoints" in error_msg.lower() or "not found" in error_msg.lower():
+                            error = f"Модель '{model.name}' не найдена в OpenRouter.\nВозможно, модель устарела или имеет другое название.\nПроверьте доступные модели на https://openrouter.ai/models\n\nДетали: {error_msg[:150]}"
+                        else:
+                            error = f"Модель '{model.name}' не найдена: {error_msg[:200]}"
+                    except:
+                        error = f"HTTP ошибка 404: Модель '{model.name}' не найдена. Проверьте название модели на https://openrouter.ai/models"
+                    self.log_request(model, prompt, error=error)
+                    return "", error
+                
+                # Обработка ошибки 400 (неверный ID модели)
+                if response.status_code == 400:
+                    try:
+                        error_data = response.json()
+                        error_msg = error_data.get("error", {}).get("message", "")
+                        if "not a valid model" in error_msg.lower() or "invalid model" in error_msg.lower():
+                            error = f"Неверный ID модели: '{model.name}'\nМодель не существует или имеет другое название.\nПроверьте доступные модели на https://openrouter.ai/models\n\nДетали: {error_msg[:150]}"
+                        else:
+                            error = f"HTTP ошибка 400: Неверный запрос для модели '{model.name}'\n\nДетали: {error_msg[:200]}"
+                    except:
+                        error = f"HTTP ошибка 400: Неверный ID модели '{model.name}'. Проверьте название на https://openrouter.ai/models"
+                    self.log_request(model, prompt, error=error)
+                    return "", error
+                
+                # Обработка ошибки 429 (Too Many Requests - слишком много запросов)
+                if response.status_code == 429:
+                    try:
+                        error_data = response.json()
+                        error_msg = error_data.get("error", {}).get("message", "")
+                        
+                        # Проверяем, есть ли информация о времени ожидания
+                        retry_after = response.headers.get("Retry-After", "")
+                        if retry_after:
+                            error = f"Слишком много запросов (429): Превышен лимит запросов к модели '{model.name}'.\nПодождите {retry_after} секунд перед следующим запросом.\n\nРешение: Уменьшите количество одновременных запросов или сделайте паузу между запросами.\n\nДетали: {error_msg[:150]}"
+                        else:
+                            error = f"Слишком много запросов (429): Превышен лимит запросов к модели '{model.name}'.\n\nРешение: Подождите несколько секунд перед повторным запросом или уменьшите количество одновременных запросов.\nПроверьте лимиты на https://openrouter.ai/settings\n\nДетали: {error_msg[:150]}" if error_msg else "Слишком много запросов (429): Превышен лимит запросов. Подождите перед повторным запросом."
+                    except:
+                        error = f"HTTP ошибка 429: Слишком много запросов к модели '{model.name}'.\nПодождите несколько секунд или уменьшите количество одновременных запросов.\nПроверьте лимиты на https://openrouter.ai/settings"
+                    self.log_request(model, prompt, error=error)
+                    return "", error
+                
+                response.raise_for_status()
+                data = response.json()
+                
+                # Извлечение текста ответа из структуры OpenRouter (аналогично OpenAI)
+                response_text = ""
+                if "choices" in data and len(data["choices"]) > 0:
+                    response_text = data["choices"][0]["message"]["content"]
+                
+                metadata = json.dumps({
+                    "tokens_used": data.get("usage", {}).get("total_tokens"),
+                    "model": data.get("model")
+                })
+                
+                self.log_request(model, prompt, response_text)
+                return response_text, None
+                
+        except httpx.TimeoutException:
+            error = f"Таймаут запроса ({timeout} сек)"
+            self.log_request(model, prompt, error=error)
+            return "", error
+        except httpx.HTTPStatusError as e:
+            # Улучшенная обработка ошибок для всех статусов
+            error_text = e.response.text
+            try:
+                error_data = e.response.json()
+                if "error" in error_data and "message" in error_data["error"]:
+                    error_text = error_data["error"]["message"]
+            except:
+                pass
+            
+            error = f"HTTP ошибка {e.response.status_code}: {error_text[:300]}"
+            self.log_request(model, prompt, error=error)
+            return "", error
+        except Exception as e:
+            error = f"Неожиданная ошибка: {str(e)}"
+            self.log_request(model, prompt, error=error)
+            return "", error
+    
+    def get_headers(self, model: Model) -> Dict[str, str]:
+        """Получение заголовков для OpenRouter API."""
+        api_key = model.get_api_key()
+        return {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/your-repo",  # Опционально, для отслеживания
+            "X-Title": "ChatList"  # Опционально, название приложения
+        }
+
+
 class CustomProvider(APIProvider):
     """Провайдер для кастомных API."""
     
-    async def send_request(self, model: Model, prompt: str, timeout: int = 30) -> Tuple[str, Optional[str]]:
+    async def send_request(self, model: Model, prompt: str, timeout: int = 30, max_tokens: Optional[int] = None) -> Tuple[str, Optional[str]]:
         """Отправка запроса к кастомному API."""
         api_key = model.get_api_key()
         if not api_key:
@@ -270,6 +442,8 @@ class CustomProvider(APIProvider):
             "prompt": prompt,
             "model": model.name
         }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
         
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
@@ -292,7 +466,14 @@ class CustomProvider(APIProvider):
             self.log_request(model, prompt, error=error)
             return "", error
         except httpx.HTTPStatusError as e:
-            error = f"HTTP ошибка {e.response.status_code}: {e.response.text}"
+            error_text = e.response.text
+            try:
+                error_data = e.response.json()
+                if "error" in error_data and "message" in error_data["error"]:
+                    error_text = error_data["error"]["message"]
+            except:
+                pass
+            error = f"HTTP ошибка {e.response.status_code}: {error_text[:300]}"
             self.log_request(model, prompt, error=error)
             return "", error
         except Exception as e:
@@ -324,6 +505,7 @@ class RequestManager:
             'openai': OpenAIProvider(),
             'deepseek': DeepSeekProvider(),
             'groq': GroqProvider(),
+            'openrouter': OpenRouterProvider(),
             'custom': CustomProvider()
         }
     
@@ -350,6 +532,17 @@ class RequestManager:
                     pass
         return 30  # Значение по умолчанию
     
+    def get_max_tokens(self) -> Optional[int]:
+        """Получение max_tokens из настроек."""
+        if self.db:
+            max_tokens_str = self.db.get_setting('max_tokens')
+            if max_tokens_str:
+                try:
+                    return int(max_tokens_str)
+                except ValueError:
+                    pass
+        return None  # По умолчанию не ограничиваем (API сам решает)
+    
     async def send_request(self, model: Model, prompt: str) -> Tuple[str, Optional[str]]:
         """
         Отправка запроса к конкретной модели.
@@ -363,7 +556,8 @@ class RequestManager:
         """
         provider = self.get_provider(model.provider_type)
         timeout = self.get_timeout()
-        return await provider.send_request(model, prompt, timeout)
+        max_tokens = self.get_max_tokens()
+        return await provider.send_request(model, prompt, timeout, max_tokens)
     
     async def send_batch_requests(self, models: List[Model], prompt: str) -> Dict[str, Tuple[str, Optional[str]]]:
         """
