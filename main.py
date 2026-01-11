@@ -1469,44 +1469,14 @@ class MainWindow(QMainWindow):
         y = (screen.height() - window_height) // 2
         self.setGeometry(x, y, window_width, window_height)
         
+        # Создание меню
+        menubar = self.menuBar()
+        help_menu = menubar.addMenu('Справка')
+        about_action = help_menu.addAction('О программе')
+        about_action.triggered.connect(self.show_about_dialog)
+        
         # Центральный виджет с вкладками
         self.tabs = QTabWidget()
-        
-        # Кнопка "Справка" в углу панели вкладок (в конце списка вкладок)
-        help_button = QPushButton("Справка")
-        help_button.clicked.connect(self.show_about_dialog)
-        help_button.setToolTip("О программе")
-        help_button.setFixedWidth(80)  # Фиксированная ширина кнопки
-        # Убираем отступы у кнопки для плотного прилегания к вкладкам
-        help_button.setStyleSheet("""
-            QPushButton {
-                margin: 0px;
-                padding: 8px;
-                border: none;
-            }
-        """)
-        
-        # Убираем промежуток между вкладками и corner widget через стили
-        # Стили применяем после создания кнопки, чтобы они влияли на corner widget
-        self.tabs.setStyleSheet("""
-            QTabWidget::pane {
-                border: 1px solid #C0C0C0;
-            }
-            QTabBar::tab {
-                padding: 8px 16px;
-                margin-right: 0px;
-            }
-            QTabBar {
-                spacing: 0px;
-            }
-            QTabWidget::corner {
-                margin: 0px;
-                padding: 0px;
-            }
-        """)
-        # Размещаем кнопку в правом верхнем углу QTabWidget (в той же строке, что и вкладки)
-        self.tabs.setCornerWidget(help_button, Qt.TopRightCorner)
-        
         self.setCentralWidget(self.tabs)
         
         # Вкладка "Работа с промтами"
