@@ -4,12 +4,14 @@
 """
 
 import sys
+import os
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QTextEdit, QComboBox, QPushButton, 
                              QLabel, QMessageBox, QTableWidget, QTableWidgetItem,
                              QHeaderView, QCheckBox, QProgressBar, QTabWidget, QLineEdit,
                              QDialog, QTextBrowser, QListWidget, QListWidgetItem)
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtGui import QTextCursor, QIcon, QFont, QPalette
 from db import Database
 from models import ModelManager, Model
 from network import RequestManager, send_batch_requests_sync
@@ -498,6 +500,12 @@ class MarkdownViewDialog(QDialog):
         self.model_name = model_name
         self.response_text = response_text
         self.prompt_text = prompt_text
+        
+        # Устанавливаем иконку для диалога
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        
         self.init_ui()
         self.load_content()
     
@@ -782,6 +790,11 @@ class PromptImprovementDialog(QDialog):
         self.original_prompt = original_prompt
         self.improvements = improvements or {}
         self.selected_prompt = None  # Выбранный промт для использования
+        
+        # Устанавливаем иконку для диалога
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
         
         self.setWindowTitle("Улучшение промта - Ответы от всех моделей")
         self.setMinimumWidth(1000)
@@ -1436,6 +1449,17 @@ class MainWindow(QMainWindow):
         """Инициализация интерфейса главного окна."""
         self.setWindowTitle("ChatList - Сравнение ответов нейросетей")
         
+        # Устанавливаем иконку для главного окна
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        
+        # Применяем сохранённую тему и размер шрифта
+        theme = self.db.get_setting('ui_theme') or 'light'
+        self.apply_theme(theme)
+        font_size = int(self.db.get_setting('font_size') or '10')
+        self.apply_font_size(font_size)
+        
         # Центрирование окна на экране
         from PyQt5.QtWidgets import QDesktopWidget
         screen = QDesktopWidget().screenGeometry()
@@ -1447,6 +1471,42 @@ class MainWindow(QMainWindow):
         
         # Центральный виджет с вкладками
         self.tabs = QTabWidget()
+        
+        # Кнопка "Справка" в углу панели вкладок (в конце списка вкладок)
+        help_button = QPushButton("Справка")
+        help_button.clicked.connect(self.show_about_dialog)
+        help_button.setToolTip("О программе")
+        help_button.setFixedWidth(80)  # Фиксированная ширина кнопки
+        # Убираем отступы у кнопки для плотного прилегания к вкладкам
+        help_button.setStyleSheet("""
+            QPushButton {
+                margin: 0px;
+                padding: 8px;
+                border: none;
+            }
+        """)
+        
+        # Убираем промежуток между вкладками и corner widget через стили
+        # Стили применяем после создания кнопки, чтобы они влияли на corner widget
+        self.tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #C0C0C0;
+            }
+            QTabBar::tab {
+                padding: 8px 16px;
+                margin-right: 0px;
+            }
+            QTabBar {
+                spacing: 0px;
+            }
+            QTabWidget::corner {
+                margin: 0px;
+                padding: 0px;
+            }
+        """)
+        # Размещаем кнопку в правом верхнем углу QTabWidget (в той же строке, что и вкладки)
+        self.tabs.setCornerWidget(help_button, Qt.TopRightCorner)
+        
         self.setCentralWidget(self.tabs)
         
         # Вкладка "Работа с промтами"
@@ -1462,6 +1522,7 @@ class MainWindow(QMainWindow):
         self.results_widget = ResultsTableWidget(self.db)
         main_layout.addWidget(self.results_widget)
         
+        # Добавляем вкладки
         self.tabs.addTab(main_tab, "Запросы")
         
         # Вкладка "Управление моделями"
@@ -1522,6 +1583,43 @@ class MainWindow(QMainWindow):
         settings_layout.addLayout(max_tokens_layout)
         settings_layout.addWidget(max_tokens_help)
         
+        # Разделитель
+        separator1 = QLabel("─" * 80)
+        settings_layout.addWidget(separator1)
+        
+        # Тема интерфейса
+        theme_layout = QHBoxLayout()
+        theme_label = QLabel("Тема интерфейса:")
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItem("Светлая", "light")
+        self.theme_combo.addItem("Тёмная", "dark")
+        theme_saved = self.db.get_setting('ui_theme') or 'light'
+        theme_index = self.theme_combo.findData(theme_saved)
+        if theme_index >= 0:
+            self.theme_combo.setCurrentIndex(theme_index)
+        self.theme_combo.currentIndexChanged.connect(self.on_theme_changed)
+        theme_layout.addWidget(theme_label)
+        theme_layout.addWidget(self.theme_combo)
+        theme_layout.addStretch()
+        settings_layout.addLayout(theme_layout)
+        
+        # Размер шрифта
+        font_size_layout = QHBoxLayout()
+        font_size_label = QLabel("Размер шрифта панелей:")
+        self.font_size_combo = QComboBox()
+        font_sizes = ['8', '9', '10', '11', '12', '14', '16', '18', '20']
+        for size in font_sizes:
+            self.font_size_combo.addItem(f"{size} pt", size)
+        font_size_saved = self.db.get_setting('font_size') or '10'
+        font_size_index = self.font_size_combo.findData(font_size_saved)
+        if font_size_index >= 0:
+            self.font_size_combo.setCurrentIndex(font_size_index)
+        self.font_size_combo.currentIndexChanged.connect(self.on_font_size_changed)
+        font_size_layout.addWidget(font_size_label)
+        font_size_layout.addWidget(self.font_size_combo)
+        font_size_layout.addStretch()
+        settings_layout.addLayout(font_size_layout)
+        
         settings_layout.addStretch()
         self.tabs.addTab(settings_tab, "Настройки")
         
@@ -1532,6 +1630,51 @@ class MainWindow(QMainWindow):
         """Сохранение настройки."""
         self.db.set_setting(key, value)
         QMessageBox.information(self, "Успех", f"Настройка '{key}' сохранена!")
+    
+    def on_theme_changed(self, index: int):
+        """Обработка изменения темы."""
+        theme = self.theme_combo.itemData(index)
+        if theme:
+            self.db.set_setting('ui_theme', theme)
+            self.apply_theme(theme)
+    
+    def on_font_size_changed(self, index: int):
+        """Обработка изменения размера шрифта."""
+        font_size = self.font_size_combo.itemData(index)
+        if font_size:
+            self.db.set_setting('font_size', font_size)
+            self.apply_font_size(int(font_size))
+    
+    def apply_theme(self, theme: str):
+        """Применение темы интерфейса."""
+        app = QApplication.instance()
+        if theme == 'dark':
+            # Тёмная тема
+            dark_palette = QPalette()
+            dark_palette.setColor(QPalette.Window, Qt.gray)
+            dark_palette.setColor(QPalette.WindowText, Qt.white)
+            dark_palette.setColor(QPalette.Base, Qt.darkGray)
+            dark_palette.setColor(QPalette.AlternateBase, Qt.gray)
+            dark_palette.setColor(QPalette.ToolTipBase, Qt.white)
+            dark_palette.setColor(QPalette.ToolTipText, Qt.white)
+            dark_palette.setColor(QPalette.Text, Qt.white)
+            dark_palette.setColor(QPalette.Button, Qt.darkGray)
+            dark_palette.setColor(QPalette.ButtonText, Qt.white)
+            dark_palette.setColor(QPalette.BrightText, Qt.red)
+            dark_palette.setColor(QPalette.Link, Qt.cyan)
+            dark_palette.setColor(QPalette.Highlight, Qt.blue)
+            dark_palette.setColor(QPalette.HighlightedText, Qt.black)
+            app.setPalette(dark_palette)
+        else:
+            # Светлая тема (по умолчанию)
+            app.setPalette(app.style().standardPalette())
+    
+    def apply_font_size(self, size: int):
+        """Применение размера шрифта ко всем виджетам."""
+        font = QFont()
+        font.setPointSize(size)
+        app = QApplication.instance()
+        app.setFont(font)
     
     def on_prompt_sent(self, prompt_text: str, prompt_id: int):
         """
@@ -1668,6 +1811,38 @@ class MainWindow(QMainWindow):
             )
         
         print(f"Запросы завершены. Успешно: {successful}/{total}")
+    
+    def show_about_dialog(self):
+        """Показать диалог 'О программе'."""
+        from PyQt5.QtWidgets import QMessageBox
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.ico")
+        
+        about_text = """
+        <h2>ChatList</h2>
+        <p><b>Версия:</b> 1.0</p>
+        <p><b>Описание:</b></p>
+        <p>Приложение для сравнения ответов от нескольких нейросетей.</p>
+        <p>Позволяет отправлять один промт в несколько AI-моделей одновременно и сравнивать их ответы.</p>
+        <p><b>Возможности:</b></p>
+        <ul>
+            <li>Поддержка множества AI-моделей (OpenRouter, OpenAI, DeepSeek, Groq и др.)</li>
+            <li>Сравнение ответов в удобной таблице</li>
+            <li>История запросов и результатов</li>
+            <li>AI-ассистент для улучшения промтов</li>
+            <li>Настройки темы и размера шрифта</li>
+        </ul>
+        <p><b>Технологии:</b> Python, PyQt5, SQLite, HTTPX</p>
+        <p><small>© 2025</small></p>
+        """
+        
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("О программе")
+        msg_box.setTextFormat(Qt.RichText)
+        msg_box.setText(about_text)
+        if os.path.exists(icon_path):
+            msg_box.setWindowIcon(QIcon(icon_path))
+        msg_box.setStandardButtons(QMessageBox.Ok)
+        msg_box.exec_()
     
     def closeEvent(self, event):
         """Обработка закрытия приложения."""
