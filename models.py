@@ -4,39 +4,77 @@
 """
 
 import os
+import sys
 from typing import List, Optional, Dict
 from dotenv import load_dotenv
 
 # Загрузка переменных окружения из .env файла
 # Сначала пробуем загрузить .env.local (для локальной разработки), затем .env
-env_local_path = '.env.local'
-env_path = '.env'
+
+def get_base_path():
+    """Получение базового пути для поиска файлов .env"""
+    if getattr(sys, 'frozen', False):
+        # Если запущено из EXE файла (PyInstaller)
+        # Используем директорию, где находится EXE файл
+        if hasattr(sys, '_MEIPASS'):
+            # PyInstaller создает временную директорию, но файлы .env должны быть рядом с EXE
+            return os.path.dirname(sys.executable)
+        return os.path.dirname(sys.executable)
+    else:
+        # Если запущено из исходников, используем директорию скрипта
+        return os.path.dirname(os.path.abspath(__file__))
+
+base_path = get_base_path()
+
+# Пути к файлам .env (в директории EXE или рядом со скриптом)
+env_local_path = os.path.join(base_path, '.env.local')
+env_path = os.path.join(base_path, '.env')
+
+# Также проверяем текущую рабочую директорию (на случай, если запущено из другой папки)
+current_dir_env_local = os.path.join(os.getcwd(), '.env.local')
+current_dir_env = os.path.join(os.getcwd(), '.env')
 
 # Проверяем, что файл не пустой перед загрузкой
+# Приоритет: .env.local в базовой директории > .env в базовой директории > .env.local в текущей > .env в текущей
+loaded = False
+
 if os.path.exists(env_local_path):
     file_size = os.path.getsize(env_local_path)
     if file_size > 0:
         load_dotenv(env_local_path, override=True)  # .env.local имеет приоритет
         print(f"[INFO] Загружен {env_local_path} ({file_size} байт)")
+        loaded = True
     else:
         print(f"[WARNING] Файл {env_local_path} существует, но пустой (0 байт)")
-        # Пробуем загрузить .env или системные переменные
-        if os.path.exists(env_path) and os.path.getsize(env_path) > 0:
-            load_dotenv(env_path, override=True)
-            print(f"[INFO] Загружен {env_path} вместо пустого {env_local_path}")
-        else:
-            load_dotenv()  # Попытка загрузить из системных переменных
-elif os.path.exists(env_path):
+
+if not loaded and os.path.exists(env_path):
     file_size = os.path.getsize(env_path)
     if file_size > 0:
-        load_dotenv(env_path, override=True)  # Загружаем .env, если .env.local нет
+        load_dotenv(env_path, override=True)
         print(f"[INFO] Загружен {env_path} ({file_size} байт)")
+        loaded = True
     else:
         print(f"[WARNING] Файл {env_path} существует, но пустой (0 байт)")
-        load_dotenv()  # Попытка загрузить из системных переменных
-else:
-    load_dotenv()  # Попытка загрузить .env или системные переменные
-    print(f"[INFO] Попытка загрузки из системных переменных окружения")
+
+# Если не нашли в базовой директории, проверяем текущую рабочую директорию
+if not loaded and os.path.exists(current_dir_env_local):
+    file_size = os.path.getsize(current_dir_env_local)
+    if file_size > 0:
+        load_dotenv(current_dir_env_local, override=True)
+        print(f"[INFO] Загружен {current_dir_env_local} ({file_size} байт)")
+        loaded = True
+
+if not loaded and os.path.exists(current_dir_env):
+    file_size = os.path.getsize(current_dir_env)
+    if file_size > 0:
+        load_dotenv(current_dir_env, override=True)
+        print(f"[INFO] Загружен {current_dir_env} ({file_size} байт)")
+        loaded = True
+
+if not loaded:
+    # Попытка загрузить из системных переменных или стандартного .env
+    load_dotenv()  # load_dotenv() автоматически ищет .env в текущей директории и выше
+    print(f"[INFO] Попытка загрузки из системных переменных окружения или стандартного .env")
 
 
 class Model:

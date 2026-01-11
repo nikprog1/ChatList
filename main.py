@@ -1137,17 +1137,36 @@ class MainWindow(QMainWindow):
         if not models_with_keys:
             # Проверяем, какой файл используется
             import os
-            env_local = os.path.exists('.env.local')
-            env_file = '.env.local' if env_local else '.env'
+            import sys
+            
+            # Определяем директорию EXE файла или скрипта
+            if getattr(sys, 'frozen', False):
+                base_dir = os.path.dirname(sys.executable)
+            else:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+            
+            # Проверяем наличие файлов
+            env_local_path = os.path.join(base_dir, '.env.local')
+            env_path = os.path.join(base_dir, '.env')
+            
+            env_local_exists = os.path.exists(env_local_path)
+            env_exists = os.path.exists(env_path)
+            
+            if env_local_exists:
+                env_file = env_local_path
+            elif env_exists:
+                env_file = env_path
+            else:
+                env_file = f"{base_dir}\\.env.local или {base_dir}\\.env"
             
             QMessageBox.warning(
                 self,
                 "Предупреждение",
                 f"У активных моделей не найдены API-ключи!\n\n"
-                f"Проверьте файл {env_file}\n"
-                f"Убедитесь, что переменная OPENROUTER_API_KEY указана правильно:\n"
-                f"OPENROUTER_API_KEY=ваш_ключ\n\n"
-                f"После изменения файла перезапустите приложение."
+                f"Создайте файл рядом с приложением:\n{env_file}\n\n"
+                f"Добавьте в файл строку:\nOPENROUTER_API_KEY=ваш_ключ\n\n"
+                f"После создания файла перезапустите приложение.\n\n"
+                f"Примечание: файл .env.local имеет приоритет над .env"
             )
             return
         
