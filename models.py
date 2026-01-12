@@ -82,6 +82,7 @@ class Model:
     
     def __init__(self, id: int, name: str, api_url: str, api_id: str, 
                  provider_type: str = 'custom', is_active: int = 1,
+                 api_key: Optional[str] = None,
                  created_at: Optional[str] = None, updated_at: Optional[str] = None):
         """
         Инициализация модели.
@@ -93,6 +94,7 @@ class Model:
             api_id: Идентификатор переменной окружения с API-ключом
             provider_type: Тип провайдера (openai, deepseek, groq, custom)
             is_active: Активна ли модель (1 - да, 0 - нет)
+            api_key: API ключ для модели (опционально, хранится в БД)
             created_at: Дата создания
             updated_at: Дата последнего обновления
         """
@@ -100,6 +102,7 @@ class Model:
         self.name = name
         self.api_url = api_url
         self.api_id = api_id
+        self.api_key = api_key
         self.provider_type = provider_type
         self.is_active = is_active
         self.created_at = created_at
@@ -107,11 +110,22 @@ class Model:
     
     def get_api_key(self) -> Optional[str]:
         """
-        Получение API-ключа из переменных окружения.
+        Получение API-ключа.
+        Приоритет: 1) API ключ из БД, 2) переменная окружения.
         
         Returns:
             API-ключ или None, если ключ не найден
         """
+        # Сначала проверяем API ключ из БД
+        if self.api_key:
+            # Если ключ содержит "=" (например, "OPENROUTER_API_KEY=ключ"),
+            # извлекаем только значение после "="
+            if "=" in self.api_key:
+                parts = self.api_key.split("=", 1)
+                if len(parts) == 2:
+                    return parts[1].strip()
+            return self.api_key
+        # Если нет в БД, проверяем переменную окружения
         return os.getenv(self.api_id)
     
     def has_api_key(self) -> bool:
@@ -135,6 +149,7 @@ class Model:
             'name': self.name,
             'api_url': self.api_url,
             'api_id': self.api_id,
+            'api_key': self.api_key,
             'provider_type': self.provider_type,
             'is_active': self.is_active,
             'created_at': self.created_at,
@@ -159,6 +174,7 @@ class Model:
             api_id=data.get('api_id'),
             provider_type=data.get('provider_type', 'custom'),
             is_active=data.get('is_active', 1),
+            api_key=data.get('api_key'),
             created_at=data.get('created_at'),
             updated_at=data.get('updated_at')
         )
@@ -239,6 +255,14 @@ class ModelManager:
             if model.name == name:
                 return model
         return None
+    
+    def invalidate_cache(self):
+        """
+        Инвалидация кэша моделей.
+        Вызывается после изменения моделей в БД для обновления кэша.
+        """
+        self._cache_valid = False
+        self._models_cache = None
     
     def add_model(self, name: str, api_url: str, api_id: str, 
                   provider_type: str = 'custom', is_active: int = 1) -> Model:

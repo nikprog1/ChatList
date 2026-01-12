@@ -66,6 +66,16 @@ class ModelEditDialog(QDialog):
         api_id_layout.addWidget(self.api_id_input)
         layout.addLayout(api_id_layout)
         
+        # API ключ (безопасное хранение в БД)
+        api_key_layout = QHBoxLayout()
+        api_key_label = QLabel("API ключ:")
+        self.api_key_input = QLineEdit()
+        self.api_key_input.setPlaceholderText("Введите API ключ (опционально)")
+        self.api_key_input.setEchoMode(QLineEdit.Password)  # Маскирование ввода
+        api_key_layout.addWidget(api_key_label)
+        api_key_layout.addWidget(self.api_key_input)
+        layout.addLayout(api_key_layout)
+        
         # Тип провайдера
         provider_layout = QHBoxLayout()
         provider_label = QLabel("Тип провайдера:")
@@ -116,6 +126,9 @@ class ModelEditDialog(QDialog):
         self.name_input.setText(self.model.name)
         self.url_input.setText(self.model.api_url)
         self.api_id_input.setText(self.model.api_id)
+        # Загружаем API ключ, если он есть (для отображения показываем звездочки)
+        if self.model.api_key:
+            self.api_key_input.setText(self.model.api_key)
         index = self.provider_combo.findText(self.model.provider_type)
         if index >= 0:
             self.provider_combo.setCurrentIndex(index)
@@ -148,24 +161,40 @@ class ModelEditDialog(QDialog):
         # Сохранение
         provider_type = self.provider_combo.currentText()
         is_active = 1 if self.active_checkbox.isChecked() else 0
+        api_key_raw = self.api_key_input.text().strip()
+        
+        # Обработка API ключа: убираем префикс "OPENROUTER_API_KEY=" если он есть
+        api_key = None
+        if api_key_raw:
+            # Если пользователь ввел "OPENROUTER_API_KEY=ключ", извлекаем только значение
+            if "=" in api_key_raw:
+                parts = api_key_raw.split("=", 1)
+                if len(parts) == 2:
+                    api_key = parts[1].strip()
+                else:
+                    api_key = api_key_raw
+            else:
+                api_key = api_key_raw
         
         if self.is_edit_mode and self.model:
             # Обновление существующей модели
-            success = self.db.update_model(
-                self.model.id,
-                name=name,
-                api_url=url,
-                api_id=api_id,
-                provider_type=provider_type,
-                is_active=is_active
-            )
+            update_data = {
+                'name': name,
+                'api_url': url,
+                'api_id': api_id,
+                'provider_type': provider_type,
+                'is_active': is_active,
+                'api_key': api_key  # Обновляем API ключ (может быть None для удаления)
+            }
+            
+            success = self.db.update_model(self.model.id, **update_data)
             if not success:
                 QMessageBox.critical(self, "Ошибка", "Не удалось обновить модель!")
                 return
         else:
             # Создание новой модели
             try:
-                self.db.add_model(name, url, api_id, provider_type, is_active)
+                self.db.add_model(name, url, api_id, provider_type, is_active, api_key=api_key)
             except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось создать модель: {str(e)}")
                 return
@@ -325,6 +354,8 @@ class ModelsManagementWidget(QWidget):
         """Добавление новой модели."""
         dialog = ModelEditDialog(self, model=None, db=self.db)
         if dialog.exec_() == QDialog.Accepted:
+            # Инвалидируем кэш моделей для обновления данных
+            self.model_manager.invalidate_cache()
             self.load_models()
     
     def edit_model(self):
@@ -336,6 +367,8 @@ class ModelsManagementWidget(QWidget):
         
         dialog = ModelEditDialog(self, model=model, db=self.db)
         if dialog.exec_() == QDialog.Accepted:
+            # Инвалидируем кэш моделей для обновления данных
+            self.model_manager.invalidate_cache()
             self.load_models()
     
     def delete_model(self):
@@ -358,6 +391,8 @@ class ModelsManagementWidget(QWidget):
             success = self.db.delete_model(model.id)
             
             if success:
+                # Инвалидируем кэш моделей для обновления данных
+                self.model_manager.invalidate_cache()
                 QMessageBox.information(self, "Успех", "Модель удалена успешно!")
                 self.load_models()
             else:

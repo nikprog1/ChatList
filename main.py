@@ -18,6 +18,7 @@ from network import RequestManager, send_batch_requests_sync
 from models_dialog import ModelsManagementWidget
 from history_widget import HistoryWidget
 from prompt_improver import PromptImprover
+from version import __version__
 from typing import Dict, Tuple, Optional, List
 
 
@@ -1426,6 +1427,7 @@ class MainWindow(QMainWindow):
         """Инициализация главного окна."""
         super().__init__()
         try:
+            print(f"ChatList версия {__version__}")
             print("Инициализация базы данных...")
             self.db = Database()
             print("База данных инициализирована")
@@ -1447,7 +1449,7 @@ class MainWindow(QMainWindow):
     
     def init_ui(self):
         """Инициализация интерфейса главного окна."""
-        self.setWindowTitle("ChatList - Сравнение ответов нейросетей")
+        self.setWindowTitle(f"ChatList v{__version__} - Сравнение ответов нейросетей")
         
         # Устанавливаем иконку для главного окна
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.ico")
@@ -1668,38 +1670,16 @@ class MainWindow(QMainWindow):
         # Проверить наличие API-ключей
         models_with_keys = [m for m in active_models if m.has_api_key()]
         if not models_with_keys:
-            # Проверяем, какой файл используется
-            import os
-            import sys
-            
-            # Определяем директорию EXE файла или скрипта
-            if getattr(sys, 'frozen', False):
-                base_dir = os.path.dirname(sys.executable)
-            else:
-                base_dir = os.path.dirname(os.path.abspath(__file__))
-            
-            # Проверяем наличие файлов
-            env_local_path = os.path.join(base_dir, '.env.local')
-            env_path = os.path.join(base_dir, '.env')
-            
-            env_local_exists = os.path.exists(env_local_path)
-            env_exists = os.path.exists(env_path)
-            
-            if env_local_exists:
-                env_file = env_local_path
-            elif env_exists:
-                env_file = env_path
-            else:
-                env_file = f"{base_dir}\\.env.local или {base_dir}\\.env"
-            
             QMessageBox.warning(
                 self,
                 "Предупреждение",
-                f"У активных моделей не найдены API-ключи!\n\n"
-                f"Создайте файл рядом с приложением:\n{env_file}\n\n"
-                f"Добавьте в файл строку:\nOPENROUTER_API_KEY=ваш_ключ\n\n"
-                f"После создания файла перезапустите приложение.\n\n"
-                f"Примечание: файл .env.local имеет приоритет над .env"
+                "У активных моделей не найдены API-ключи!\n\n"
+                "Добавьте API-ключи для моделей:\n"
+                "1. Перейдите на вкладку 'Модели'\n"
+                "2. Выберите модель и нажмите 'Редактировать'\n"
+                "3. Введите API-ключ в поле 'API ключ'\n"
+                "4. Сохраните изменения\n\n"
+                "API-ключи будут безопасно сохранены в базе данных."
             )
             return
         
@@ -1787,9 +1767,9 @@ class MainWindow(QMainWindow):
         from PyQt5.QtWidgets import QMessageBox
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.ico")
         
-        about_text = """
+        about_text = f"""
         <h2>ChatList</h2>
-        <p><b>Версия:</b> 1.0</p>
+        <p><b>Версия:</b> {__version__}</p>
         <p><b>Описание:</b></p>
         <p>Приложение для сравнения ответов от нескольких нейросетей.</p>
         <p>Позволяет отправлять один промт в несколько AI-моделей одновременно и сравнивать их ответы.</p>
@@ -1833,7 +1813,7 @@ def main():
         window.raise_()  # Поднять окно на передний план
         window.activateWindow()  # Активировать окно
         
-        print("Приложение запущено. Окно должно быть видно на экране.")
+        print(f"ChatList версия {__version__} запущено. Окно должно быть видно на экране.")
         print("Если окно не видно, проверьте, что оно не свернуто в трей.")
         sys.exit(app.exec_())
     except Exception as e:

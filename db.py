@@ -53,12 +53,22 @@ class Database:
                 name TEXT NOT NULL UNIQUE,
                 api_url TEXT NOT NULL,
                 api_id TEXT NOT NULL,
+                api_key TEXT,
                 provider_type TEXT NOT NULL DEFAULT 'custom',
                 is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        
+        # Миграция: добавление поля api_key, если его нет
+        try:
+            cursor.execute("ALTER TABLE models ADD COLUMN api_key TEXT")
+            self.conn.commit()
+            print("[INFO] Добавлено поле api_key в таблицу models")
+        except sqlite3.OperationalError:
+            # Поле уже существует, это нормально
+            pass
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_models_name ON models(name)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_models_active ON models(is_active)")
         
@@ -182,10 +192,10 @@ class Database:
             if not exists:
                 # Добавляем новую модель (по умолчанию неактивна, чтобы пользователь мог выбрать нужные)
                 cursor.execute("""
-                    INSERT INTO models (name, api_url, api_id, provider_type, is_active, 
+                    INSERT INTO models (name, api_url, api_id, api_key, provider_type, is_active, 
                                       created_at, updated_at) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (model_name, openrouter_url, openrouter_api_id, provider_type, 0, now, now))
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (model_name, openrouter_url, openrouter_api_id, None, provider_type, 0, now, now))
     
     # Методы для работы с таблицей prompts
     
@@ -330,7 +340,8 @@ class Database:
     # Методы для работы с таблицей models
     
     def add_model(self, name: str, api_url: str, api_id: str, 
-                  provider_type: str = 'custom', is_active: int = 1) -> int:
+                  provider_type: str = 'custom', is_active: int = 1, 
+                  api_key: Optional[str] = None) -> int:
         """
         Добавление новой модели.
         
@@ -340,6 +351,7 @@ class Database:
             api_id: Идентификатор переменной окружения с API-ключом
             provider_type: Тип провайдера (openai, deepseek, groq, custom)
             is_active: Активна ли модель (1 - да, 0 - нет)
+            api_key: API ключ для модели (опционально)
         
         Returns:
             ID добавленной модели
@@ -347,10 +359,10 @@ class Database:
         cursor = self.conn.cursor()
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cursor.execute("""
-            INSERT INTO models (name, api_url, api_id, provider_type, is_active, 
+            INSERT INTO models (name, api_url, api_id, api_key, provider_type, is_active, 
                               created_at, updated_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (name, api_url, api_id, provider_type, is_active, now, now))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (name, api_url, api_id, api_key, provider_type, is_active, now, now))
         self.conn.commit()
         return cursor.lastrowid
     
@@ -416,12 +428,12 @@ class Database:
         
         Args:
             model_id: ID модели
-            **kwargs: Поля для обновления (name, api_url, api_id, provider_type, is_active)
+            **kwargs: Поля для обновления (name, api_url, api_id, api_key, provider_type, is_active)
         
         Returns:
             True если обновление успешно, False если модель не найдена
         """
-        allowed_fields = ['name', 'api_url', 'api_id', 'provider_type', 'is_active']
+        allowed_fields = ['name', 'api_url', 'api_id', 'api_key', 'provider_type', 'is_active']
         updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
         
         if not updates:

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ChatList - приложение для сравнения ответов от различных AI моделей">
+    <title>ChatList - Сравнение ответов нейросетей</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 60px 20px;
+            color: white;
+        }
+
+        header h1 {
+            font-size: 3.5em;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        header p {
+            font-size: 1.3em;
+            opacity: 0.95;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .version-badge {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+
+        .main-content {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            margin: -30px 20px 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin: 40px 0;
+        }
+
+        .feature-card {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 15px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .feature-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .feature-card p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .download-section {
+            text-align: center;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            margin: 40px 0;
+            color: white;
+        }
+
+        .download-section h2 {
+            margin-bottom: 20px;
+            font-size: 2em;
+        }
+
+        .download-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 30px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 15px 40px;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: bold;
+            font-size: 1.1em;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid white;
+        }
+
+        .btn-secondary:hover {
+            background: white;
+            color: #667eea;
+        }
+
+        .screenshots {
+            margin: 40px 0;
+        }
+
+        .screenshots h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+            font-size: 2em;
+        }
+
+        .screenshot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .screenshot-item {
+            background: #f8f9fa;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .screenshot-item img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .requirements {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 15px;
+            margin: 40px 0;
+        }
+
+        .requirements h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .requirements ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .requirements li {
+            padding: 10px 0;
+            padding-left: 30px;
+            position: relative;
+        }
+
+        .requirements li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #667eea;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: white;
+            margin-top: 60px;
+        }
+
+        footer a {
+            color: white;
+            text-decoration: underline;
+        }
+
+        .changelog-link {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .changelog-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .changelog-link a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2.5em;
+            }
+
+            .main-content {
+                padding: 20px;
+                margin: -20px 10px 20px;
+            }
+
+            .download-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn {
+                width: 100%;
+                max-width: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 ChatList</h1>
+            <p>Сравнивайте ответы от различных AI моделей в одном приложении</p>
+            <span class="version-badge">Версия 1.0.0</span>
+        </header>
+
+        <div class="main-content">
+            <section class="features">
+                <div class="feature-card">
+                    <h3>🚀 Множественные модели</h3>
+                    <p>Отправляйте один промт в несколько AI моделей одновременно и сравнивайте результаты в удобной таблице.</p>
+                </div>
+
+                <div class="feature-card">
+                    <h3>💾 Управление промтами</h3>
+                    <p>Сохраняйте часто используемые промты и быстро выбирайте их из списка. Организуйте работу с тегами.</p>
+                </div>
+
+                <div class="feature-card">
+                    <h3>📊 История результатов</h3>
+                    <p>Просматривайте все сохраненные результаты, фильтруйте по дате и модели, экспортируйте данные.</p>
+                </div>
+
+                <div class="feature-card">
+                    <h3>🔒 Безопасность</h3>
+                    <p>API ключи хранятся локально в зашифрованной базе данных SQLite. Ваши данные остаются конфиденциальными.</p>
+                </div>
+
+                <div class="feature-card">
+                    <h3>🎨 Настраиваемый интерфейс</h3>
+                    <p>Выбирайте между светлой и темной темой, настраивайте размер шрифта для комфортной работы.</p>
+                </div>
+
+                <div class="feature-card">
+                    <h3>✨ AI-ассистент</h3>
+                    <p>Используйте встроенный AI-ассистент для улучшения ваших промтов и получения лучших результатов.</p>
+                </div>
+            </section>
+
+            <div class="download-section">
+                <h2>📥 Скачать ChatList</h2>
+                <p>Выберите вариант установки, который вам подходит</p>
+                <div class="download-buttons">
+                    <a href="https://github.com/yourusername/chatlist/releases/latest/download/ChatList-1.0.0.exe" class="btn">
+                        📦 Скачать EXE (портативная версия)
+                    </a>
+                    <a href="https://github.com/yourusername/chatlist/releases/latest/download/ChatList-Setup-1.0.0.exe" class="btn btn-secondary">
+                        🔧 Скачать установщик
+                    </a>
+                </div>
+                <p style="margin-top: 20px; opacity: 0.9; font-size: 0.9em;">
+                    Требуется Windows 10 или новее
+                </p>
+            </div>
+
+            <section class="requirements">
+                <h2>📋 Системные требования</h2>
+                <ul>
+                    <li>Windows 10 или новее (64-bit)</li>
+                    <li>~50 МБ свободного места на диске</li>
+                    <li>Подключение к интернету</li>
+                    <li>API ключ от OpenRouter или другой поддерживаемой платформы</li>
+                </ul>
+            </section>
+
+            <section class="requirements">
+                <h2>🚀 Быстрый старт</h2>
+                <ol style="list-style: decimal; padding-left: 30px;">
+                    <li style="padding: 10px 0;">Скачайте и запустите ChatList-1.0.0.exe</li>
+                    <li style="padding: 10px 0;">Откройте вкладку "Модели"</li>
+                    <li style="padding: 10px 0;">Выберите модель и нажмите "Редактировать"</li>
+                    <li style="padding: 10px 0;">Введите ваш API ключ в поле "API ключ"</li>
+                    <li style="padding: 10px 0;">Активируйте модель, установив чекбокс "Модель активна"</li>
+                    <li style="padding: 10px 0;">Сохраните изменения и начните использовать!</li>
+                </ol>
+            </section>
+
+            <div class="changelog-link">
+                <a href="https://github.com/yourusername/chatlist/blob/main/CHANGELOG.md">📝 Посмотреть полный список изменений</a>
+            </div>
+        </div>
+
+        <footer>
+            <p>
+                <a href="https://github.com/yourusername/chatlist">GitHub</a> |
+                <a href="https://github.com/yourusername/chatlist/issues">Сообщить о проблеме</a> |
+                <a href="https://github.com/yourusername/chatlist/releases">Все релизы</a>
+            </p>
+            <p style="margin-top: 20px; opacity: 0.8;">
+                © 2025 ChatList. Сделано с ❤️ для сообщества разработчиков.
+            </p>
+        </footer>
+    </div>
+</body>
+</html>
