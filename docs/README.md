@@ -13,7 +13,7 @@
 3. Выберите ветку `main` и папку `/docs`
 4. Нажмите "Save"
 
-GitHub автоматически опубликует содержимое папки `docs` на `https://yourusername.github.io/chatlist/`
+GitHub автоматически опубликует содержимое папки `docs` на `https://nikprog1.github.io/ChatList/`
 
 ## Обновление лендинга
 

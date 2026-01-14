@@ -423,7 +423,7 @@ class OpenRouterProvider(APIProvider):
         return {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/your-repo",  # Опционально, для отслеживания
+            "HTTP-Referer": "https://github.com/nikprog1/ChatList",  # Опционально, для отслеживания
             "X-Title": "ChatList"  # Опционально, название приложения
         }
 

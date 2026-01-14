@@ -56,7 +56,7 @@ ChatList — это приложение для сравнения ответо�
 
 ## 🤝 Поддержка
 
-Если вы нашли баг или у вас есть предложение, пожалуйста, создайте [Issue](https://github.com/yourusername/chatlist/issues).
+Если вы нашли баг или у вас есть предложение, пожалуйста, создайте [Issue](https://github.com/nikprog1/ChatList/issues).
 
 ## 📄 Лицензия
 
@@ -64,4 +64,4 @@ ChatList — это приложение для сравнения ответо�
 
 ---
 
-**Скачать**: [ChatList-1.0.0.exe](https://github.com/yourusername/chatlist/releases/download/v1.0.0/ChatList-1.0.0.exe)
+**Скачать**: [ChatList-1.0.0.exe](https://github.com/nikprog1/ChatList/releases/download/v1.0.0/ChatList-1.0.0.exe)

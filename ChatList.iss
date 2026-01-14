@@ -4,7 +4,7 @@
 #define MyAppName "ChatList"
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "ChatList"
-#define MyAppURL "https://github.com/yourusername/chatlist"
+#define MyAppURL "https://github.com/nikprog1/ChatList"
 #define MyAppExeName "ChatList-1.0.0.exe"
 #define MyAppId "{{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}}"
 
@@ -62,7 +62,7 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 
 [UninstallDelete]
 ; Удаление файлов при деинсталляции
-Type: files; Name: "{app}\chatlist.db"
+Type: files; Name: "{app}\ChatList.db"
 Type: files; Name: "{app}\*.log"
 Type: filesandordirs; Name: "{app}\logs"
 ; Удаление файлов настроек (опционально, раскомментируйте если нужно)
